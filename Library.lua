@@ -3,7 +3,6 @@ NotificationLib.__index = NotificationLib
 
 NotificationLib.defaults = {
     duration = 10,
-    spawnDelay = 0,
     verticalSpacing = 5,
     typingSpeed = 0.05,
     position = UDim2.new(0, 15, 0, 20),
@@ -24,6 +23,7 @@ function NotificationLib.new(config)
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     self.activeNotifications = {}
+    self.globalEndTime = nil
     return self
 end
 
@@ -69,11 +69,11 @@ function NotificationLib:TypeWriter(textLabel, fullText)
     end
 end
 
-function NotificationLib:CreateNotification(text, color, duration)
+function NotificationLib:CreateNotification(text, duration, color)
     local textService = game:GetService("TextService")
     local textWidth = textService:GetTextSize(text, self.settings.textSize, self.settings.font, Vector2.new(10000, 10000)).X
     local minWidth = math.max(textWidth + 24, 150)
-    duration = duration or self.settings.duration
+    color = color or self.settings.accentColor
 
     local outerFrame = Instance.new("Frame")
     outerFrame.Name = "OuterFrame"
@@ -150,13 +150,23 @@ function NotificationLib:CreateNotification(text, color, duration)
         self:TypeWriter(textLabel, text)
     end)
 
-    task.delay(#text * self.settings.typingSpeed, function()
-        game:GetService("TweenService"):Create(
-            progressBar,
-            TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-            {Size = UDim2.new(0, 0, 0, 1)}
-        ):Play()
-    end)
+    local typingDuration = #text * self.settings.typingSpeed
+    local displayDuration = duration or self.settings.duration
+
+    if not self.globalEndTime then
+        self.globalEndTime = tick() + typingDuration + displayDuration
+    end
+
+    local remainingTime = self.globalEndTime - (tick() + typingDuration)
+    if remainingTime > 0 then
+        task.delay(typingDuration, function()
+            game:GetService("TweenService"):Create(
+                progressBar,
+                TweenInfo.new(remainingTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+                {Size = UDim2.new(0, 0, 0, 1)}
+            ):Play()
+        end)
+    end
 
     local function Remove()
         for i, notif in ipairs(self.activeNotifications) do
@@ -199,14 +209,14 @@ function NotificationLib:CreateNotification(text, color, duration)
 
     notification.remove = Remove
 
-    task.delay(duration + (#text * self.settings.typingSpeed), Remove)
+    task.delay((self.globalEndTime - tick()), Remove)
     
     return notification
 end
 
-function NotificationLib:Notify(text, color, duration)
+function NotificationLib:Notify(text, duration, color)
     task.spawn(function()
-        self:CreateNotification(text, color, duration)
+        self:CreateNotification(text, duration, color)
     end)
 end
 
@@ -214,7 +224,7 @@ function NotificationLib:WelcomePlayer()
     local playerName = game:GetService("Players").LocalPlayer.Name
     local displayName = game:GetService("Players").LocalPlayer.DisplayName
     local welcomeName = displayName ~= playerName and displayName or playerName
-    self:Notify("Welcome, "..welcomeName.."!", Color3.fromRGB(255, 215, 0))
+    self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
 end
 
 function NotificationLib:Destroy()
@@ -230,6 +240,7 @@ function NotificationLib:Destroy()
     
     self.activeNotifications = nil
     self.container = nil
+    self.globalEndTime = nil
 end
 
 return NotificationLib
