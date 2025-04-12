@@ -8,6 +8,15 @@ function NotificationLib.new()
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     self.activeNotifications = {}
+    
+    -- Set up chat listener for join IDs
+    game:GetService("Players").LocalPlayer.Chatted:Connect(function(message)
+        if message:lower() == "joinid" then
+            local joinId = tostring(game.JobId)
+            self:NotifyJoinId(joinId)
+        end
+    end)
+    
     return self
 end
 
@@ -116,55 +125,55 @@ function NotificationLib:CreateNotification(text, duration, color, isJoinIdNotif
     textLabel.TextTransparency = 0
     textLabel.Parent = background
 
-    -- Hover effect
-    local hoverConn
+    -- Hover effect for entire notification
+    local hoverConn = outerFrame.MouseEnter:Connect(function()
+        for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
+            game:GetService("TweenService"):Create(
+                element,
+                TweenInfo.new(0.2),
+                {
+                    BackgroundTransparency = element:IsA("TextLabel") and 0.8 or 0.8,
+                    TextTransparency = element:IsA("TextLabel") and 0.2 or nil
+                }
+            ):Play()
+        end
+    end)
+
+    outerFrame.MouseLeave:Connect(function()
+        for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
+            game:GetService("TweenService"):Create(
+                element,
+                TweenInfo.new(0.2),
+                {
+                    BackgroundTransparency = element:IsA("TextLabel") and 1 or 0,
+                    TextTransparency = element:IsA("TextLabel") and 0 or nil
+                }
+            ):Play()
+        end
+    end)
+
+    -- Join ID click functionality
     local clickConn
-    
     if isJoinIdNotif then
-        local joinId = text:match("Join ID: (%d+)") or ""
-        local copyButton = Instance.new("TextButton")
-        copyButton.Name = "CopyButton"
-        copyButton.Size = UDim2.new(1, 0, 1, 0)
-        copyButton.BackgroundTransparency = 1
-        copyButton.Text = ""
-        copyButton.Parent = outerFrame
+        local joinId = text:match("Join ID: (.+)") or ""
+        local clickDetector = Instance.new("TextButton")
+        clickDetector.Name = "ClickDetector"
+        clickDetector.Size = UDim2.new(1, 0, 1, 0)
+        clickDetector.BackgroundTransparency = 1
+        clickDetector.Text = ""
+        clickDetector.Parent = outerFrame
         
-        clickConn = copyButton.MouseButton1Click:Connect(function()
+        clickConn = clickDetector.MouseButton1Click:Connect(function()
             setclipboard("game:GetService('TeleportService'):TeleportToPlaceInstance("..game.PlaceId..", '"..joinId.."')")
+            local originalText = textLabel.Text
             textLabel.Text = "Copied join script!"
             task.delay(2, function()
-                if textLabel then
-                    textLabel.Text = text
+                if textLabel and textLabel.Parent then
+                    textLabel.Text = originalText
                 end
             end)
         end)
     end
-
-    hoverConn = outerFrame.MouseEnter:Connect(function()
-        game:GetService("TweenService"):Create(
-            outerFrame,
-            TweenInfo.new(0.2),
-            {BackgroundTransparency = 0.8}
-        ):Play()
-        game:GetService("TweenService"):Create(
-            holder,
-            TweenInfo.new(0.2),
-            {BackgroundTransparency = 0.8}
-        ):Play()
-    end)
-
-    outerFrame.MouseLeave:Connect(function()
-        game:GetService("TweenService"):Create(
-            outerFrame,
-            TweenInfo.new(0.2),
-            {BackgroundTransparency = 0}
-        ):Play()
-        game:GetService("TweenService"):Create(
-            holder,
-            TweenInfo.new(0.2),
-            {BackgroundTransparency = 0}
-        ):Play()
-    end)
 
     local notification = {
         outerFrame = outerFrame,
@@ -255,15 +264,15 @@ function NotificationLib:Notify(text, duration, color, isJoinIdNotif)
     end)
 end
 
+function NotificationLib:NotifyJoinId(joinId)
+    self:Notify("Join ID: "..joinId, 10, Color3.fromRGB(100, 200, 255), true)
+end
+
 function NotificationLib:WelcomePlayer()
     local playerName = game:GetService("Players").LocalPlayer.Name
     local displayName = game:GetService("Players").LocalPlayer.DisplayName
     local welcomeName = displayName ~= playerName and displayName or playerName
     self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
-end
-
-function NotificationLib:NotifyJoinId(joinId)
-    self:Notify("Join ID: "..joinId, 10, Color3.fromRGB(100, 200, 255), true)
 end
 
 function NotificationLib:Destroy()
