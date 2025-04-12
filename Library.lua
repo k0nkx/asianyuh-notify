@@ -8,7 +8,6 @@ function NotificationLib.new()
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     self.activeNotifications = {}
-    self.globalEndTime = nil
     return self
 end
 
@@ -137,20 +136,13 @@ function NotificationLib:CreateNotification(text, duration, color)
 
     local typingDuration = #text * typingSpeed
 
-    if not self.globalEndTime then
-        self.globalEndTime = tick() + typingDuration + duration
-    end
-
-    local remainingTime = self.globalEndTime - (tick() + typingDuration)
-    if remainingTime > 0 then
-        task.delay(typingDuration, function()
-            game:GetService("TweenService"):Create(
-                progressBar,
-                TweenInfo.new(remainingTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-                {Size = UDim2.new(0, 0, 0, 1)}
-            ):Play()
-        end)
-    end
+    task.delay(typingDuration, function()
+        game:GetService("TweenService"):Create(
+            progressBar,
+            TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+            {Size = UDim2.new(0, 0, 0, 1)}
+        ):Play()
+    end)
 
     local function Remove()
         for i, notif in ipairs(self.activeNotifications) do
@@ -193,7 +185,7 @@ function NotificationLib:CreateNotification(text, duration, color)
 
     notification.remove = Remove
 
-    task.delay((self.globalEndTime - tick()), Remove)
+    task.delay(typingDuration + duration, Remove)
     
     return notification
 end
@@ -224,7 +216,6 @@ function NotificationLib:Destroy()
     
     self.activeNotifications = nil
     self.container = nil
-    self.globalEndTime = nil
 end
 
 return NotificationLib
