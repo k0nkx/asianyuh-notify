@@ -1,23 +1,8 @@
 local NotificationLib = {}
 NotificationLib.__index = NotificationLib
 
-NotificationLib.defaults = {
-    duration = 10,
-    verticalSpacing = 5,
-    typingSpeed = 0.05,
-    position = UDim2.new(0, 15, 0, 20),
-    outerFrameColor = Color3.fromRGB(80, 80, 80),
-    outerBorderColor = Color3.fromRGB(40, 40, 40),
-    innerFrameColor = Color3.fromRGB(37, 37, 37),
-    backgroundColor = Color3.fromRGB(17, 17, 17),
-    textColor = Color3.new(1, 1, 1),
-    textSize = 12,
-    font = Enum.Font.Ubuntu
-}
-
-function NotificationLib.new(config)
+function NotificationLib.new()
     local self = setmetatable({}, NotificationLib)
-    self.settings = setmetatable(config or {}, {__index = NotificationLib.defaults})
     self.container = Instance.new("ScreenGui")
     self.container.Name = "NotificationContainer"
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -30,17 +15,17 @@ end
 function NotificationLib:UpdatePositions()
     for i, notification in ipairs(self.activeNotifications) do
         if notification and notification.outerFrame and notification.outerFrame.Parent then
-            local targetY = self.settings.position.Y.Offset + ((i - 1) * (25 + self.settings.verticalSpacing))
+            local targetY = 20 + ((i - 1) * 30)
             game:GetService("TweenService"):Create(
                 notification.outerFrame,
                 TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {Position = UDim2.new(self.settings.position.X.Scale, self.settings.position.X.Offset, 0, targetY)}
+                {Position = UDim2.new(0, 15, 0, targetY)}
             ):Play()
         end
     end
 end
 
-function NotificationLib:TypeWriter(textLabel, fullText)
+function NotificationLib:TypeWriter(textLabel, fullText, speed)
     local typedText = ""
     local cursorVisible = true
     local cursorTask = nil
@@ -60,7 +45,7 @@ function NotificationLib:TypeWriter(textLabel, fullText)
         if cursorTask then
             textLabel.Text = typedText .. "|"
         end
-        wait(self.settings.typingSpeed)
+        wait(speed)
     end
     
     if cursorTask then
@@ -71,18 +56,17 @@ end
 
 function NotificationLib:CreateNotification(text, duration, color)
     local textService = game:GetService("TextService")
-    local textWidth = textService:GetTextSize(text, self.settings.textSize, self.settings.font, Vector2.new(10000, 10000)).X
+    local textWidth = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(10000, 10000)).X
     local minWidth = math.max(textWidth + 24, 150)
-    color = color or self.settings.accentColor
 
     local outerFrame = Instance.new("Frame")
     outerFrame.Name = "OuterFrame"
     outerFrame.Position = UDim2.new(0, -minWidth - 2, 0, -32)
     outerFrame.Size = UDim2.new(0, minWidth + 4, 0, 25)
     outerFrame.BackgroundTransparency = 0
-    outerFrame.BackgroundColor3 = self.settings.outerFrameColor
+    outerFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     outerFrame.BorderSizePixel = 1
-    outerFrame.BorderColor3 = self.settings.outerBorderColor
+    outerFrame.BorderColor3 = Color3.fromRGB(40, 40, 40)
     outerFrame.ClipsDescendants = true
     outerFrame.Parent = self.container
 
@@ -91,7 +75,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     holder.Position = UDim2.new(0, 1, 0, 1)
     holder.Size = UDim2.new(1, -2, 1, -2)
     holder.BackgroundTransparency = 0
-    holder.BackgroundColor3 = self.settings.innerFrameColor
+    holder.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
     holder.BorderSizePixel = 0
     holder.ClipsDescendants = true
     holder.Parent = outerFrame
@@ -100,7 +84,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     background.Name = "Background"
     background.Size = UDim2.new(1, -4, 1, -4)
     background.Position = UDim2.new(0, 2, 0, 2)
-    background.BackgroundColor3 = self.settings.backgroundColor
+    background.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
     background.BorderSizePixel = 0
     background.Parent = holder
 
@@ -125,10 +109,10 @@ function NotificationLib:CreateNotification(text, duration, color)
     textLabel.TextXAlignment = Enum.TextXAlignment.Left
     textLabel.Position = UDim2.new(0, 8, 0, 0)
     textLabel.Size = UDim2.new(1, -8, 1, 0)
-    textLabel.Font = self.settings.font
+    textLabel.Font = Enum.Font.Ubuntu
     textLabel.Text = ""
-    textLabel.TextColor3 = self.settings.textColor
-    textLabel.TextSize = self.settings.textSize
+    textLabel.TextColor3 = Color3.new(1, 1, 1)
+    textLabel.TextSize = 12
     textLabel.BackgroundTransparency = 1
     textLabel.TextTransparency = 0
     textLabel.Parent = background
@@ -146,15 +130,15 @@ function NotificationLib:CreateNotification(text, duration, color)
 
     self:UpdatePositions()
 
+    local typingSpeed = 0.05
     task.spawn(function()
-        self:TypeWriter(textLabel, text)
+        self:TypeWriter(textLabel, text, typingSpeed)
     end)
 
-    local typingDuration = #text * self.settings.typingSpeed
-    local displayDuration = duration or self.settings.duration
+    local typingDuration = #text * typingSpeed
 
     if not self.globalEndTime then
-        self.globalEndTime = tick() + typingDuration + displayDuration
+        self.globalEndTime = tick() + typingDuration + duration
     end
 
     local remainingTime = self.globalEndTime - (tick() + typingDuration)
