@@ -3,7 +3,7 @@ NotificationLib.__index = NotificationLib
 
 NotificationLib.defaults = {
     duration = 10,
-    spawnDelay = 2,
+    spawnDelay = 0,
     verticalSpacing = 5,
     typingSpeed = 0.05,
     position = UDim2.new(0, 15, 0, 20),
@@ -24,7 +24,6 @@ function NotificationLib.new(config)
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     self.activeNotifications = {}
-    self.nextNotificationTime = 0
     return self
 end
 
@@ -206,11 +205,7 @@ function NotificationLib:CreateNotification(text, color, duration)
 end
 
 function NotificationLib:Notify(text, color, duration)
-    local now = tick()
-    local delay = math.max(0, self.nextNotificationTime - now)
-    self.nextNotificationTime = now + delay + (duration or self.settings.duration)
-    
-    task.delay(delay, function()
+    task.spawn(function()
         self:CreateNotification(text, color, duration)
     end)
 end
@@ -219,7 +214,7 @@ function NotificationLib:WelcomePlayer()
     local playerName = game:GetService("Players").LocalPlayer.Name
     local displayName = game:GetService("Players").LocalPlayer.DisplayName
     local welcomeName = displayName ~= playerName and displayName or playerName
-    self:CreateNotification("Welcome, "..welcomeName.."!", Color3.fromRGB(255, 215, 0))
+    self:Notify("Welcome, "..welcomeName.."!", Color3.fromRGB(255, 215, 0))
 end
 
 function NotificationLib:Destroy()
