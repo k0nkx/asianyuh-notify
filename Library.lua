@@ -33,7 +33,7 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed)
         while true do
             textLabel.Text = typedText .. (cursorVisible and "|" or "")
             cursorVisible = not cursorVisible
-            wait(0.5)
+            task.wait(0.5)
         end
     end
     
@@ -44,7 +44,7 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed)
         if cursorTask then
             textLabel.Text = typedText .. "|"
         end
-        wait(speed)
+        task.wait(speed)
     end
     
     if cursorTask then
@@ -53,7 +53,7 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed)
     end
 end
 
-function NotificationLib:CreateNotification(text, duration, color)
+function NotificationLib:CreateNotification(text, duration, color, isJoinIdNotif)
     local textService = game:GetService("TextService")
     local textWidth = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(10000, 10000)).X
     local minWidth = math.max(textWidth + 24, 150)
@@ -116,6 +116,56 @@ function NotificationLib:CreateNotification(text, duration, color)
     textLabel.TextTransparency = 0
     textLabel.Parent = background
 
+    -- Hover effect
+    local hoverConn
+    local clickConn
+    
+    if isJoinIdNotif then
+        local joinId = text:match("Join ID: (%d+)") or ""
+        local copyButton = Instance.new("TextButton")
+        copyButton.Name = "CopyButton"
+        copyButton.Size = UDim2.new(1, 0, 1, 0)
+        copyButton.BackgroundTransparency = 1
+        copyButton.Text = ""
+        copyButton.Parent = outerFrame
+        
+        clickConn = copyButton.MouseButton1Click:Connect(function()
+            setclipboard("game:GetService('TeleportService'):TeleportToPlaceInstance("..game.PlaceId..", '"..joinId.."')")
+            textLabel.Text = "Copied join script!"
+            task.delay(2, function()
+                if textLabel then
+                    textLabel.Text = text
+                end
+            end)
+        end)
+    end
+
+    hoverConn = outerFrame.MouseEnter:Connect(function()
+        game:GetService("TweenService"):Create(
+            outerFrame,
+            TweenInfo.new(0.2),
+            {BackgroundTransparency = 0.8}
+        ):Play()
+        game:GetService("TweenService"):Create(
+            holder,
+            TweenInfo.new(0.2),
+            {BackgroundTransparency = 0.8}
+        ):Play()
+    end)
+
+    outerFrame.MouseLeave:Connect(function()
+        game:GetService("TweenService"):Create(
+            outerFrame,
+            TweenInfo.new(0.2),
+            {BackgroundTransparency = 0}
+        ):Play()
+        game:GetService("TweenService"):Create(
+            holder,
+            TweenInfo.new(0.2),
+            {BackgroundTransparency = 0}
+        ):Play()
+    end)
+
     local notification = {
         outerFrame = outerFrame,
         holder = holder,
@@ -123,7 +173,8 @@ function NotificationLib:CreateNotification(text, duration, color)
         accentBar = accentBar,
         progressBar = progressBar,
         textLabel = textLabel,
-        remove = nil
+        remove = nil,
+        connections = {hoverConn, clickConn}
     }
     table.insert(self.activeNotifications, notification)
 
@@ -149,6 +200,14 @@ function NotificationLib:CreateNotification(text, duration, color)
             if notif == notification then
                 table.remove(self.activeNotifications, i)
                 break
+            end
+        end
+
+        if notification.connections then
+            for _, conn in ipairs(notification.connections) do
+                if conn then
+                    conn:Disconnect()
+                end
             end
         end
 
@@ -190,9 +249,9 @@ function NotificationLib:CreateNotification(text, duration, color)
     return notification
 end
 
-function NotificationLib:Notify(text, duration, color)
+function NotificationLib:Notify(text, duration, color, isJoinIdNotif)
     task.spawn(function()
-        self:CreateNotification(text, duration, color)
+        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255), isJoinIdNotif or false)
     end)
 end
 
@@ -201,6 +260,10 @@ function NotificationLib:WelcomePlayer()
     local displayName = game:GetService("Players").LocalPlayer.DisplayName
     local welcomeName = displayName ~= playerName and displayName or playerName
     self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+end
+
+function NotificationLib:NotifyJoinId(joinId)
+    self:Notify("Join ID: "..joinId, 10, Color3.fromRGB(100, 200, 255), true)
 end
 
 function NotificationLib:Destroy()
