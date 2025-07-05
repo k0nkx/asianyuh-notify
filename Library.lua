@@ -9,14 +9,6 @@ function NotificationLib.new()
     self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     self.activeNotifications = {}
     
-    -- Set up chat listener for join IDs
-    game:GetService("Players").LocalPlayer.Chatted:Connect(function(message)
-        if message:lower() == "joinid" then
-            local joinId = tostring(game.JobId)
-            self:NotifyJoinId(joinId)
-        end
-    end)
-    
     return self
 end
 
@@ -62,7 +54,7 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed)
     end
 end
 
-function NotificationLib:CreateNotification(text, duration, color, isJoinIdNotif)
+function NotificationLib:CreateNotification(text, duration, color)
     local textService = game:GetService("TextService")
     local textWidth = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(10000, 10000)).X
     local minWidth = math.max(textWidth + 24, 150)
@@ -152,29 +144,6 @@ function NotificationLib:CreateNotification(text, duration, color, isJoinIdNotif
         end
     end)
 
-    -- Join ID click functionality
-    local clickConn
-    if isJoinIdNotif then
-        local joinId = text:match("Join ID: (.+)") or ""
-        local clickDetector = Instance.new("TextButton")
-        clickDetector.Name = "ClickDetector"
-        clickDetector.Size = UDim2.new(1, 0, 1, 0)
-        clickDetector.BackgroundTransparency = 1
-        clickDetector.Text = ""
-        clickDetector.Parent = outerFrame
-        
-        clickConn = clickDetector.MouseButton1Click:Connect(function()
-            setclipboard("game:GetService('TeleportService'):TeleportToPlaceInstance("..game.PlaceId..", '"..joinId.."')")
-            local originalText = textLabel.Text
-            textLabel.Text = "Copied join script!"
-            task.delay(2, function()
-                if textLabel and textLabel.Parent then
-                    textLabel.Text = originalText
-                end
-            end)
-        end)
-    end
-
     local notification = {
         outerFrame = outerFrame,
         holder = holder,
@@ -183,7 +152,7 @@ function NotificationLib:CreateNotification(text, duration, color, isJoinIdNotif
         progressBar = progressBar,
         textLabel = textLabel,
         remove = nil,
-        connections = {hoverConn, clickConn}
+        connections = {hoverConn}
     }
     table.insert(self.activeNotifications, notification)
 
@@ -258,14 +227,10 @@ function NotificationLib:CreateNotification(text, duration, color, isJoinIdNotif
     return notification
 end
 
-function NotificationLib:Notify(text, duration, color, isJoinIdNotif)
+function NotificationLib:Notify(text, duration, color)
     task.spawn(function()
-        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255), isJoinIdNotif or false)
+        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255))
     end)
-end
-
-function NotificationLib:NotifyJoinId(joinId)
-    self:Notify("Join ID: "..joinId, 10, Color3.fromRGB(100, 200, 255), true)
 end
 
 function NotificationLib:WelcomePlayer()
