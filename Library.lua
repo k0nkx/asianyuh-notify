@@ -8,6 +8,34 @@ function NotificationLib.new()
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     self.activeNotifications = {}
+    self.ready = false
+    self.queuedNotifications = {}
+    
+    -- Wait for game to fully load
+    task.spawn(function()
+        -- Wait for player to be loaded
+        local player = game:GetService("Players").LocalPlayer
+        while not player.Character do
+            player.CharacterAdded:Wait()
+            task.wait(1) -- Additional buffer time
+        end
+        
+        -- Additional loading checks if needed
+        if game:IsLoaded() == false then
+            game.Loaded:Wait()
+        end
+        
+        -- Wait for the core UI to be ready
+        task.wait(1)
+        
+        self.ready = true
+        
+        -- Process any queued notifications
+        for _, notificationData in ipairs(self.queuedNotifications) do
+            self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color)
+        end
+        self.queuedNotifications = {}
+    end)
     
     return self
 end
@@ -55,6 +83,15 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed)
 end
 
 function NotificationLib:CreateNotification(text, duration, color)
+    if not self.ready then
+        table.insert(self.queuedNotifications, {
+            text = text,
+            duration = duration,
+            color = color
+        })
+        return
+    end
+
     local textService = game:GetService("TextService")
     local textWidth = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(10000, 10000)).X
     local minWidth = math.max(textWidth + 24, 150)
@@ -234,6 +271,20 @@ function NotificationLib:Notify(text, duration, color)
 end
 
 function NotificationLib:WelcomePlayer()
+    if not self.ready then
+        -- Queue the welcome message if game isn't loaded yet
+        task.spawn(function()
+            while not self.ready do
+                task.wait()
+            end
+            local playerName = game:GetService("Players").LocalPlayer.Name
+            local displayName = game:GetService("Players").LocalPlayer.DisplayName
+            local welcomeName = displayName ~= playerName and displayName or playerName
+            self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+        end)
+        return
+    end
+    
     local playerName = game:GetService("Players").LocalPlayer.Name
     local displayName = game:GetService("Players").LocalPlayer.DisplayName
     local welcomeName = displayName ~= playerName and displayName or playerName
@@ -253,6 +304,7 @@ function NotificationLib:Destroy()
     
     self.activeNotifications = nil
     self.container = nil
+    self.queuedNotifications = nil
 end
 
 return NotificationLib
