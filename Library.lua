@@ -13,38 +13,68 @@ function NotificationLib.new()
     local self = setmetatable({}, NotificationLib)
     currentInstance = self
     
+    -- Create container with fallbacks
     self.container = Instance.new("ScreenGui")
     self.container.Name = "NotificationContainer_" .. tostring(math.random(1, 1000000))
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    
+    -- Safe parent assignment with multiple fallbacks
+    local success, _ = pcall(function()
+        self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    end)
+    
+    if not success then
+        -- Ultimate fallback if all parent options fail
+        self.container.Parent = game:GetService("StarterGui")
+    end
+    
     self.activeNotifications = {}
     self.ready = false
     self.queuedNotifications = {}
     
-    -- Wait for game to fully load
+    -- Safe initialization
     task.spawn(function()
-        -- Wait for player to be loaded
-        local player = game:GetService("Players").LocalPlayer
-        while not player.Character do
-            player.CharacterAdded:Wait()
-            task.wait(1) -- Additional buffer time
+        local success, err = pcall(function()
+            -- Wait for player service to be available
+            local players = game:GetService("Players")
+            while not players.LocalPlayer do
+                task.wait(1)
+            end
+            
+            local player = players.LocalPlayer
+            
+            -- Wait for character safely
+            if not player.Character then
+                local charAdded
+                charAdded = player.CharacterAdded:Connect(function()
+                    charAdded:Disconnect()
+                end)
+                player.CharacterAdded:Wait()
+                task.wait(1) -- Additional buffer time
+            end
+            
+            -- Wait for game to load safely
+            if not game:IsLoaded() then
+                game.Loaded:Wait()
+            end
+            
+            -- Additional safety wait
+            task.wait(1)
+            
+            self.ready = true
+            
+            -- Process any queued notifications
+            for _, notificationData in ipairs(self.queuedNotifications) do
+                self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color)
+            end
+            self.queuedNotifications = {}
+        end)
+        
+        if err then
+            warn("NotificationLib initialization error:", err)
+            -- Fallback to ready state if initialization fails
+            self.ready = true
         end
-        
-        -- Additional loading checks if needed
-        if game:IsLoaded() == false then
-            game.Loaded:Wait()
-        end
-        
-        -- Wait for the core UI to be ready
-        task.wait(1)
-        
-        self.ready = true
-        
-        -- Process any queued notifications
-        for _, notificationData in ipairs(self.queuedNotifications) do
-            self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color)
-        end
-        self.queuedNotifications = {}
     end)
     
     return self
@@ -93,6 +123,11 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed)
 end
 
 function NotificationLib:CreateNotification(text, duration, color)
+    -- Default values if nil
+    text = text or "Notification"
+    duration = duration or 5
+    color = color or Color3.fromRGB(255, 255, 255)
+    
     if not self.ready then
         table.insert(self.queuedNotifications, {
             text = text,
@@ -103,13 +138,14 @@ function NotificationLib:CreateNotification(text, duration, color)
     end
 
     local textService = game:GetService("TextService")
-    local textWidth = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(10000, 10000)).X
-    local minWidth = math.max(textWidth + 24, 150)
+    local textSize = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(10000, 10000))
+    local minWidth = math.max(textSize.X + 24, 150)
+    local minHeight = math.max(textSize.Y + 12, 25)
 
     local outerFrame = Instance.new("Frame")
     outerFrame.Name = "OuterFrame"
     outerFrame.Position = UDim2.new(0, -minWidth - 2, 0, -32)
-    outerFrame.Size = UDim2.new(0, minWidth + 4, 0, 25)
+    outerFrame.Size = UDim2.new(0, minWidth + 4, 0, minHeight + 4)
     outerFrame.BackgroundTransparency = 0
     outerFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     outerFrame.BorderSizePixel = 1
@@ -154,6 +190,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     local textLabel = Instance.new("TextLabel")
     textLabel.Name = "TextLabel"
     textLabel.TextXAlignment = Enum.TextXAlignment.Left
+    textLabel.TextYAlignment = Enum.TextYAlignment.Center
     textLabel.Position = UDim2.new(0, 8, 0, 0)
     textLabel.Size = UDim2.new(1, -8, 1, 0)
     textLabel.Font = Enum.Font.Ubuntu
@@ -162,6 +199,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     textLabel.TextSize = 12
     textLabel.BackgroundTransparency = 1
     textLabel.TextTransparency = 0
+    textLabel.TextWrapped = true
     textLabel.Parent = background
 
     -- Hover effect for entire notification
@@ -262,7 +300,9 @@ function NotificationLib:CreateNotification(text, duration, color)
         end
         
         task.delay(0.3, function()
-            outerFrame:Destroy()
+            if outerFrame and outerFrame.Parent then
+                outerFrame:Destroy()
+            end
             self:UpdatePositions()
         end)
     end
@@ -287,18 +327,24 @@ function NotificationLib:WelcomePlayer()
             while not self.ready do
                 task.wait()
             end
-            local playerName = game:GetService("Players").LocalPlayer.Name
-            local displayName = game:GetService("Players").LocalPlayer.DisplayName
-            local welcomeName = displayName ~= playerName and displayName or playerName
-            self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+            local player = game:GetService("Players").LocalPlayer
+            if player then
+                local playerName = player.Name
+                local displayName = player.DisplayName
+                local welcomeName = displayName ~= playerName and displayName or playerName
+                self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+            end
         end)
         return
     end
     
-    local playerName = game:GetService("Players").LocalPlayer.Name
-    local displayName = game:GetService("Players").LocalPlayer.DisplayName
-    local welcomeName = displayName ~= playerName and displayName or playerName
-    self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+    local player = game:GetService("Players").LocalPlayer
+    if player then
+        local playerName = player.Name
+        local displayName = player.DisplayName
+        local welcomeName = displayName ~= playerName and displayName or playerName
+        self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+    end
 end
 
 function NotificationLib:Destroy()
@@ -307,9 +353,11 @@ function NotificationLib:Destroy()
         currentInstance = nil
     end
     
-    for _, notification in ipairs(self.activeNotifications) do
-        if notification.remove then
-            notification.remove()
+    if self.activeNotifications then
+        for _, notification in ipairs(self.activeNotifications) do
+            if notification and notification.remove then
+                notification.remove()
+            end
         end
     end
     
