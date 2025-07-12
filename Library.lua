@@ -1,19 +1,26 @@
-local NotificationLib = {}
-NotificationLib.__index = NotificationLib
-
-local currentInstance = nil
+local NotificationLib = {
+    activeNotifications = {},
+    queuedNotifications = {},
+    ready = false,
+    currentInstance = nil
+}
 
 function NotificationLib.new()
     -- Clean up previous instance
-    if currentInstance then
-        currentInstance:Destroy()
+    if NotificationLib.currentInstance then
+        NotificationLib.currentInstance:Destroy()
     end
     
-    local self = setmetatable({}, NotificationLib)
-    currentInstance = self
+    local self = {
+        container = Instance.new("ScreenGui"),
+        activeNotifications = {},
+        queuedNotifications = {},
+        ready = false
+    }
     
-    -- Create container
-    self.container = Instance.new("ScreenGui")
+    NotificationLib.currentInstance = self
+    
+    -- Configure container
     self.container.Name = "NotificationLib_"..tostring(math.random(1, 1e6))
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
@@ -21,10 +28,6 @@ function NotificationLib.new()
     pcall(function()
         self.container.Parent = game:GetService("CoreGui") or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     end)
-    
-    self.activeNotifications = {}
-    self.ready = false
-    self.queuedNotifications = {}
     
     -- Robust initialization
     task.spawn(function()
@@ -60,7 +63,7 @@ function NotificationLib.new()
                 
                 -- Process queued notifications
                 for _, notif in ipairs(self.queuedNotifications) do
-                    self:CreateNotification(notif.text, notif.duration, notif.color)
+                    self.CreateNotification(self, notif.text, notif.duration, notif.color)
                 end
                 self.queuedNotifications = {}
             end)
@@ -72,6 +75,14 @@ function NotificationLib.new()
             task.wait(1)
         end
     end)
+    
+    -- Bind methods
+    self.UpdatePositions = NotificationLib.UpdatePositions
+    self.TypeWriter = NotificationLib.TypeWriter
+    self.CreateNotification = NotificationLib.CreateNotification
+    self.Notify = NotificationLib.Notify
+    self.WelcomePlayer = NotificationLib.WelcomePlayer
+    self.Destroy = NotificationLib.Destroy
     
     return self
 end
@@ -204,7 +215,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     )
 
     -- Typewriter effect
-    self:TypeWriter(textLabel, text, 0.05)
+    self.TypeWriter(self, textLabel, text, 0.05)
 
     -- Progress animation
     task.delay(#text * 0.05, function()
@@ -228,14 +239,14 @@ function NotificationLib:CreateNotification(text, duration, color)
                 true,
                 function()
                     outerFrame:Destroy()
-                    self:UpdatePositions()
+                    self.UpdatePositions(self)
                 end
             )
         end
     }
     
     table.insert(self.activeNotifications, notification)
-    self:UpdatePositions()
+    self.UpdatePositions(self)
 
     -- Auto-remove after duration
     task.delay(#text * 0.05 + duration, function()
@@ -253,7 +264,7 @@ end
 
 function NotificationLib:Notify(text, duration, color)
     task.spawn(function()
-        self:CreateNotification(text, duration, color)
+        self.CreateNotification(self, text, duration, color)
     end)
 end
 
@@ -269,14 +280,14 @@ function NotificationLib:WelcomePlayer()
         
         if success and player then
             local name = player.DisplayName ~= player.Name and player.DisplayName or player.Name
-            self:Notify("Welcome, "..name.."!", 5, Color3.fromRGB(255, 215, 0))
+            self.Notify(self, "Welcome, "..name.."!", 5, Color3.fromRGB(255, 215, 0))
         end
     end)
 end
 
 function NotificationLib:Destroy()
-    if currentInstance == self then
-        currentInstance = nil
+    if NotificationLib.currentInstance == self then
+        NotificationLib.currentInstance = nil
     end
     
     if self.container then
