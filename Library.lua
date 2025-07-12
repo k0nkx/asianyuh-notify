@@ -1,10 +1,20 @@
 local NotificationLib = {}
 NotificationLib.__index = NotificationLib
 
+-- Store a reference to the current instance
+local currentInstance = nil
+
 function NotificationLib.new()
+    -- Clean up previous instance if it exists
+    if currentInstance then
+        currentInstance:Destroy()
+    end
+    
     local self = setmetatable({}, NotificationLib)
+    currentInstance = self
+    
     self.container = Instance.new("ScreenGui")
-    self.container.Name = "NotificationContainer"
+    self.container.Name = "NotificationContainer_" .. tostring(math.random(1, 1000000))
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     self.activeNotifications = {}
@@ -292,6 +302,11 @@ function NotificationLib:WelcomePlayer()
 end
 
 function NotificationLib:Destroy()
+    -- Clear the current instance reference if it's this one
+    if currentInstance == self then
+        currentInstance = nil
+    end
+    
     for _, notification in ipairs(self.activeNotifications) do
         if notification.remove then
             notification.remove()
