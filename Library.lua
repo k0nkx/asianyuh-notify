@@ -1,32 +1,74 @@
-local NotificationLib = {
-    currentInstance = nil,
-    activeNotifications = {},
-    queuedNotifications = {},
-    ready = false
-}
+local NotificationLib = {}
+
+-- Store a reference to the current instance
+local currentInstance = nil
 
 function NotificationLib.new()
     -- Clean up previous instance if it exists
-    if NotificationLib.currentInstance then
-        NotificationLib.currentInstance:Destroy()
+    if currentInstance then
+        currentInstance:Destroy()
     end
     
-    local self = {
-        container = nil,
-        activeNotifications = {},
-        queuedNotifications = {},
-        ready = false
-    }
-    
-    NotificationLib.currentInstance = self
+    local self = {}
+    currentInstance = self
     
     self.container = Instance.new("ScreenGui")
     self.container.Name = "NotificationContainer_" .. tostring(math.random(1, 1000000))
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    self.activeNotifications = {}
+    self.ready = false
+    self.queuedNotifications = {}
     
-    -- Define methods
-    self.UpdatePositions = function()
+    -- Wait for game to fully load with proper error handling
+    task.spawn(function()
+        -- First wait for game to load if it hasn't
+        if not game:IsLoaded() then
+            game.Loaded:Wait()
+        end
+        
+        -- Then get the local player safely
+        local player
+        local success, err = pcall(function()
+            player = game:GetService("Players").LocalPlayer
+            if not player then
+                player = game:GetService("Players").PlayerAdded:Wait()
+            end
+        end)
+        
+        if not success or not player then
+            warn("Failed to get player: "..tostring(err))
+            self.ready = true -- Still allow notifications even if player fails
+            return
+        end
+        
+        -- Wait for character to exist
+        if not player.Character then
+            local charSuccess
+            charSuccess, err = pcall(function()
+                player.CharacterAdded:Wait()
+                -- Additional wait to ensure model is fully loaded
+                task.wait(1)
+            end)
+            
+            if not charSuccess then
+                warn("Failed to wait for character: "..tostring(err))
+            end
+        end
+        
+        -- Additional safety wait
+        task.wait(0.5)
+        
+        self.ready = true
+        
+        -- Process any queued notifications
+        for _, notificationData in ipairs(self.queuedNotifications) do
+            self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color)
+        end
+        self.queuedNotifications = {}
+    end)
+    
+    function self:UpdatePositions()
         for i, notification in ipairs(self.activeNotifications) do
             if notification and notification.outerFrame and notification.outerFrame.Parent then
                 local targetY = 20 + ((i - 1) * 30)
@@ -39,7 +81,7 @@ function NotificationLib.new()
         end
     end
 
-    self.TypeWriter = function(textLabel, fullText, speed)
+    function self:TypeWriter(textLabel, fullText, speed)
         local typedText = ""
         local cursorVisible = true
         local cursorTask = nil
@@ -68,7 +110,7 @@ function NotificationLib.new()
         end
     end
 
-    self.CreateNotification = function(text, duration, color)
+    function self:CreateNotification(text, duration, color)
         if not self.ready then
             table.insert(self.queuedNotifications, {
                 text = text,
@@ -140,7 +182,7 @@ function NotificationLib.new()
         textLabel.TextTransparency = 0
         textLabel.Parent = background
 
-        -- Hover effect
+        -- Hover effect for entire notification
         local hoverConn = outerFrame.MouseEnter:Connect(function()
             for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
                 game:GetService("TweenService"):Create(
@@ -250,35 +292,56 @@ function NotificationLib.new()
         return notification
     end
 
-    self.Notify = function(text, duration, color)
+    function self:Notify(text, duration, color)
         task.spawn(function()
             self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255))
         end)
     end
 
-    self.WelcomePlayer = function()
+    function self:WelcomePlayer()
         if not self.ready then
             task.spawn(function()
                 while not self.ready do
                     task.wait()
                 end
-                local playerName = game:GetService("Players").LocalPlayer.Name
-                local displayName = game:GetService("Players").LocalPlayer.DisplayName
-                local welcomeName = displayName ~= playerName and displayName or playerName
-                self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+                local player = game:GetService("Players").LocalPlayer
+                if not player then return end
+                
+                local success, playerInfo = pcall(function()
+                    return {
+                        Name = player.Name,
+                        DisplayName = player.DisplayName
+                    }
+                end)
+                
+                if success then
+                    local welcomeName = playerInfo.DisplayName ~= playerInfo.Name and playerInfo.DisplayName or playerInfo.Name
+                    self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+                end
             end)
             return
         end
         
-        local playerName = game:GetService("Players").LocalPlayer.Name
-        local displayName = game:GetService("Players").LocalPlayer.DisplayName
-        local welcomeName = displayName ~= playerName and displayName or playerName
-        self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+        local player = game:GetService("Players").LocalPlayer
+        if not player then return end
+        
+        local success, playerInfo = pcall(function()
+            return {
+                Name = player.Name,
+                DisplayName = player.DisplayName
+            }
+        end)
+        
+        if success then
+            local welcomeName = playerInfo.DisplayName ~= playerInfo.Name and playerInfo.DisplayName or playerInfo.Name
+            self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+        end
     end
 
-    self.Destroy = function()
-        if NotificationLib.currentInstance == self then
-            NotificationLib.currentInstance = nil
+    function self:Destroy()
+        -- Clear the current instance reference if it's this one
+        if currentInstance == self then
+            currentInstance = nil
         end
         
         for _, notification in ipairs(self.activeNotifications) do
@@ -296,28 +359,6 @@ function NotificationLib.new()
         self.queuedNotifications = nil
     end
 
-    -- Wait for game to fully load
-    task.spawn(function()
-        local player = game:GetService("Players").LocalPlayer
-        while not player.Character do
-            player.CharacterAdded:Wait()
-            task.wait(1)
-        end
-        
-        if game:IsLoaded() == false then
-            game.Loaded:Wait()
-        end
-        
-        task.wait(1)
-        
-        self.ready = true
-        
-        for _, notificationData in ipairs(self.queuedNotifications) do
-            self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color)
-        end
-        self.queuedNotifications = {}
-    end)
-    
     return self
 end
 
