@@ -20,43 +20,14 @@ function NotificationLib.new()
     self.ready = false
     self.queuedNotifications = {}
     
-    -- Wait for game to fully load with proper error handling
+    -- Simplified loading check without character dependency
     task.spawn(function()
-        -- First wait for game to load if it hasn't
+        -- Wait for game to load if it hasn't
         if not game:IsLoaded() then
             game.Loaded:Wait()
         end
         
-        -- Then get the local player safely
-        local player
-        local success, err = pcall(function()
-            player = game:GetService("Players").LocalPlayer
-            if not player then
-                player = game:GetService("Players").PlayerAdded:Wait()
-            end
-        end)
-        
-        if not success or not player then
-            warn("Failed to get player: "..tostring(err))
-            self.ready = true -- Still allow notifications even if player fails
-            return
-        end
-        
-        -- Wait for character to exist
-        if not player.Character then
-            local charSuccess
-            charSuccess, err = pcall(function()
-                player.CharacterAdded:Wait()
-                -- Additional wait to ensure model is fully loaded
-                task.wait(1)
-            end)
-            
-            if not charSuccess then
-                warn("Failed to wait for character: "..tostring(err))
-            end
-        end
-        
-        -- Additional safety wait
+        -- Small buffer time for safety
         task.wait(0.5)
         
         self.ready = true
@@ -299,43 +270,16 @@ function NotificationLib.new()
     end
 
     function self:WelcomePlayer()
-        if not self.ready then
-            task.spawn(function()
-                while not self.ready do
-                    task.wait()
-                end
-                local player = game:GetService("Players").LocalPlayer
-                if not player then return end
-                
-                local success, playerInfo = pcall(function()
-                    return {
-                        Name = player.Name,
-                        DisplayName = player.DisplayName
-                    }
-                end)
-                
-                if success then
-                    local welcomeName = playerInfo.DisplayName ~= playerInfo.Name and playerInfo.DisplayName or playerInfo.Name
-                    self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
-                end
-            end)
-            return
-        end
-        
-        local player = game:GetService("Players").LocalPlayer
-        if not player then return end
-        
-        local success, playerInfo = pcall(function()
-            return {
-                Name = player.Name,
-                DisplayName = player.DisplayName
-            }
+        -- Simplified welcome message without character dependency
+        task.spawn(function()
+            local player = game:GetService("Players").LocalPlayer
+            if player then
+                local displayName = player.DisplayName or player.Name
+                self:Notify("Welcome, "..displayName.."!", 5, Color3.fromRGB(255, 215, 0))
+            else
+                self:Notify("Welcome!", 5, Color3.fromRGB(255, 215, 0))
+            end
         end)
-        
-        if success then
-            local welcomeName = playerInfo.DisplayName ~= playerInfo.Name and playerInfo.DisplayName or playerInfo.Name
-            self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
-        end
     end
 
     function self:Destroy()
