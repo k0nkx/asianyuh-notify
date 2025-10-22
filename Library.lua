@@ -1,19 +1,16 @@
 local NotificationLib = {}
 NotificationLib.__index = NotificationLib
 
--- Store a reference to the current instance
 local currentInstance = nil
 
--- Notification types
 NotificationLib.Types = {
-    NORMAL = "normal",      -- Current behavior
-    FAST = "fast",          -- 1.8x faster text animation
-    INSTANT = "instant",    -- 3x faster text animation
-    NODELAY = "nodelay"     -- Instant text, no animations
+    NORMAL = "normal",
+    FAST = "fast", 
+    INSTANT = "instant",
+    NODELAY = "nodelay"
 }
 
 function NotificationLib.new()
-    -- Clean up previous instance if it exists
     if currentInstance then
         currentInstance:Destroy()
     end
@@ -29,26 +26,21 @@ function NotificationLib.new()
     self.ready = false
     self.queuedNotifications = {}
     
-    -- Wait for game to fully load
     task.spawn(function()
-        -- Wait for player to be loaded
         local player = game:GetService("Players").LocalPlayer
         while not player.Character do
             player.CharacterAdded:Wait()
-            task.wait(1) -- Additional buffer time
+            task.wait(1)
         end
         
-        -- Additional loading checks if needed
         if game:IsLoaded() == false then
             game.Loaded:Wait()
         end
         
-        -- Wait for the core UI to be ready
         task.wait(1)
         
         self.ready = true
         
-        -- Process any queued notifications
         for _, notificationData in ipairs(self.queuedNotifications) do
             self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color, notificationData.type)
         end
@@ -73,7 +65,6 @@ end
 
 function NotificationLib:TypeWriter(textLabel, fullText, speed, type)
     if type == NotificationLib.Types.NODELAY then
-        -- Instant text display for nodelay type
         textLabel.Text = fullText
         return
     end
@@ -181,7 +172,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     textLabel.TextTransparency = 0
     textLabel.Parent = background
 
-    -- Calculate typing speed based on type (duration remains unchanged)
     local typingSpeed = 0.05
     
     if type == NotificationLib.Types.FAST then
@@ -192,7 +182,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         typingSpeed = 0
     end
 
-    -- Hover effect for entire notification (always normal speed)
     local hoverConn = outerFrame.MouseEnter:Connect(function()
         for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
             game:GetService("TweenService"):Create(
@@ -234,7 +223,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
 
     self:UpdatePositions()
 
-    -- Handle typing animation based on type
     local typingDuration = 0
     if type == NotificationLib.Types.NODELAY then
         textLabel.Text = text
@@ -245,13 +233,14 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         typingDuration = #text * typingSpeed
     end
 
-    -- Progress bar always takes the full duration (unaffected by type)
     if type ~= NotificationLib.Types.NODELAY then
-        game:GetService("TweenService"):Create(
-            progressBar,
-            TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-            {Size = UDim2.new(0, 0, 0, 1)}
-        ):Play()
+        task.delay(typingDuration, function()
+            game:GetService("TweenService"):Create(
+                progressBar,
+                TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+                {Size = UDim2.new(0, 0, 0, 1)}
+            ):Play()
+        end)
     else
         progressBar.Visible = false
     end
@@ -272,16 +261,14 @@ function NotificationLib:CreateNotification(text, duration, color, type)
             end
         end
 
-        local fadeOutGroup = []
+        local fadeOutGroup = {}
         
         if type == NotificationLib.Types.NODELAY then
-            -- Instant removal for nodelay (but still with slide out)
             outerFrame:Destroy()
             self:UpdatePositions()
             return
         end
         
-        -- Normal slide-out animation (unaffected by type)
         table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
             outerFrame,
             TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -313,7 +300,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
 
     notification.remove = Remove
 
-    -- Schedule removal after the full duration (typing time + specified duration)
     local totalDisplayTime = typingDuration + duration
     task.delay(totalDisplayTime, Remove)
     
@@ -330,7 +316,6 @@ function NotificationLib:WelcomePlayer(type)
     type = type or NotificationLib.Types.NORMAL
     
     if not self.ready then
-        -- Queue the welcome message if game isn't loaded yet
         task.spawn(function()
             while not self.ready do
                 task.wait()
@@ -350,7 +335,6 @@ function NotificationLib:WelcomePlayer(type)
 end
 
 function NotificationLib:Destroy()
-    -- Clear the current instance reference if it's this one
     if currentInstance == self then
         currentInstance = nil
     end
