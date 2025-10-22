@@ -4,6 +4,14 @@ NotificationLib.__index = NotificationLib
 -- Store a reference to the current instance
 local currentInstance = nil
 
+-- Notification type definitions
+NotificationLib.Types = {
+    NORMAL = "normal",      -- Current default behavior
+    FAST = "fast",          -- 1.8x faster animations
+    INSTANT = "instant",    -- 3x faster animations  
+    NODELAY = "nodelay"     -- Instant animations except slide in/out
+}
+
 function NotificationLib.new()
     -- Clean up previous instance if it exists
     if currentInstance then
@@ -42,7 +50,7 @@ function NotificationLib.new()
         
         -- Process any queued notifications
         for _, notificationData in ipairs(self.queuedNotifications) do
-            self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color)
+            self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color, notificationData.notificationType)
         end
         self.queuedNotifications = {}
     end)
@@ -63,10 +71,22 @@ function NotificationLib:UpdatePositions()
     end
 end
 
-function NotificationLib:TypeWriter(textLabel, fullText, speed)
+function NotificationLib:TypeWriter(textLabel, fullText, speed, notificationType)
     local typedText = ""
     local cursorVisible = true
     local cursorTask = nil
+    
+    -- Apply speed multipliers based on notification type
+    local actualSpeed = speed
+    if notificationType == self.Types.FAST then
+        actualSpeed = speed / 1.8
+    elseif notificationType == self.Types.INSTANT then
+        actualSpeed = speed / 3
+    elseif notificationType == self.Types.NODELAY then
+        -- For nodelay, skip typing animation entirely
+        textLabel.Text = fullText
+        return
+    end
     
     local function ToggleCursor()
         while true do
@@ -83,7 +103,7 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed)
         if cursorTask then
             textLabel.Text = typedText .. "|"
         end
-        task.wait(speed)
+        task.wait(actualSpeed)
     end
     
     if cursorTask then
@@ -92,12 +112,15 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed)
     end
 end
 
-function NotificationLib:CreateNotification(text, duration, color)
+function NotificationLib:CreateNotification(text, duration, color, notificationType)
+    notificationType = notificationType or self.Types.NORMAL
+    
     if not self.ready then
         table.insert(self.queuedNotifications, {
             text = text,
             duration = duration,
-            color = color
+            color = color,
+            notificationType = notificationType
         })
         return
     end
@@ -199,26 +222,63 @@ function NotificationLib:CreateNotification(text, duration, color)
         progressBar = progressBar,
         textLabel = textLabel,
         remove = nil,
-        connections = {hoverConn}
+        connections = {hoverConn},
+        notificationType = notificationType
     }
     table.insert(self.activeNotifications, notification)
 
     self:UpdatePositions()
 
     local typingSpeed = 0.05
-    task.spawn(function()
-        self:TypeWriter(textLabel, text, typingSpeed)
-    end)
+    
+    -- Handle different notification types for typing animation
+    if notificationType == self.Types.NODELAY then
+        textLabel.Text = text
+    else
+        task.spawn(function()
+            self:TypeWriter(textLabel, text, typingSpeed, notificationType)
+        end)
+    end
 
-    local typingDuration = #text * typingSpeed
+    -- Calculate durations based on notification type
+    local typingDuration = 0
+    if notificationType == self.Types.NODELAY then
+        typingDuration = 0
+    else
+        local speedMultiplier = 1
+        if notificationType == self.Types.FAST then
+            speedMultiplier = 1.8
+        elseif notificationType == self.Types.INSTANT then
+            speedMultiplier = 3
+        end
+        typingDuration = (#text * typingSpeed) / speedMultiplier
+    end
 
-    task.delay(typingDuration, function()
-        game:GetService("TweenService"):Create(
-            progressBar,
-            TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-            {Size = UDim2.new(0, 0, 0, 1)}
-        ):Play()
-    end)
+    -- Handle progress bar animation based on notification type
+    if notificationType == self.Types.NODELAY then
+        -- For nodelay, set progress bar to 0 immediately (no animation)
+        progressBar.Size = UDim2.new(0, 0, 0, 1)
+    else
+        local progressDuration = duration
+        local progressTweenInfo = TweenInfo.new(progressDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+        
+        -- Apply speed multipliers to progress bar for FAST and INSTANT types
+        if notificationType == self.Types.FAST then
+            progressDuration = duration / 1.8
+            progressTweenInfo = TweenInfo.new(progressDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+        elseif notificationType == self.Types.INSTANT then
+            progressDuration = duration / 3
+            progressTweenInfo = TweenInfo.new(progressDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+        end
+        
+        task.delay(typingDuration, function()
+            game:GetService("TweenService"):Create(
+                progressBar,
+                progressTweenInfo,
+                {Size = UDim2.new(0, 0, 0, 1)}
+            ):Play()
+        end)
+    end
 
     local function Remove()
         for i, notif in ipairs(self.activeNotifications) do
@@ -269,18 +329,28 @@ function NotificationLib:CreateNotification(text, duration, color)
 
     notification.remove = Remove
 
-    task.delay(typingDuration + duration, Remove)
+    -- Set removal timer based on notification type
+    local totalDuration = typingDuration + duration
+    if notificationType == self.Types.FAST then
+        totalDuration = typingDuration + (duration / 1.8)
+    elseif notificationType == self.Types.INSTANT then
+        totalDuration = typingDuration + (duration / 3)
+    elseif notificationType == self.Types.NODELAY then
+        totalDuration = duration  -- No typing delay for nodelay
+    end
+
+    task.delay(totalDuration, Remove)
     
     return notification
 end
 
-function NotificationLib:Notify(text, duration, color)
+function NotificationLib:Notify(text, duration, color, notificationType)
     task.spawn(function()
-        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255))
+        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255), notificationType or self.Types.NORMAL)
     end)
 end
 
-function NotificationLib:WelcomePlayer()
+function NotificationLib:WelcomePlayer(notificationType)
     if not self.ready then
         -- Queue the welcome message if game isn't loaded yet
         task.spawn(function()
@@ -290,7 +360,7 @@ function NotificationLib:WelcomePlayer()
             local playerName = game:GetService("Players").LocalPlayer.Name
             local displayName = game:GetService("Players").LocalPlayer.DisplayName
             local welcomeName = displayName ~= playerName and displayName or playerName
-            self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+            self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0), notificationType)
         end)
         return
     end
@@ -298,7 +368,7 @@ function NotificationLib:WelcomePlayer()
     local playerName = game:GetService("Players").LocalPlayer.Name
     local displayName = game:GetService("Players").LocalPlayer.DisplayName
     local welcomeName = displayName ~= playerName and displayName or playerName
-    self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+    self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0), notificationType)
 end
 
 function NotificationLib:Destroy()
