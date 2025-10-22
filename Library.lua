@@ -4,6 +4,14 @@ NotificationLib.__index = NotificationLib
 -- Store a reference to the current instance
 local currentInstance = nil
 
+-- Notification types
+NotificationLib.Types = {
+    NORMAL = "normal",      -- Current behavior
+    FAST = "fast",          -- 1.8x faster animations
+    INSTANT = "instant",    -- 3x faster animations
+    NODELAY = "nodelay"     -- Instant animations except slide in/out
+}
+
 function NotificationLib.new()
     -- Clean up previous instance if it exists
     if currentInstance then
@@ -42,7 +50,7 @@ function NotificationLib.new()
         
         -- Process any queued notifications
         for _, notificationData in ipairs(self.queuedNotifications) do
-            self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color)
+            self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color, notificationData.type)
         end
         self.queuedNotifications = {}
     end)
@@ -63,7 +71,13 @@ function NotificationLib:UpdatePositions()
     end
 end
 
-function NotificationLib:TypeWriter(textLabel, fullText, speed)
+function NotificationLib:TypeWriter(textLabel, fullText, speed, type)
+    if type == NotificationLib.Types.NODELAY then
+        -- Instant text display for nodelay type
+        textLabel.Text = fullText
+        return
+    end
+    
     local typedText = ""
     local cursorVisible = true
     local cursorTask = nil
@@ -92,12 +106,15 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed)
     end
 end
 
-function NotificationLib:CreateNotification(text, duration, color)
+function NotificationLib:CreateNotification(text, duration, color, type)
+    type = type or NotificationLib.Types.NORMAL
+    
     if not self.ready then
         table.insert(self.queuedNotifications, {
             text = text,
             duration = duration,
-            color = color
+            color = color,
+            type = type
         })
         return
     end
@@ -164,12 +181,27 @@ function NotificationLib:CreateNotification(text, duration, color)
     textLabel.TextTransparency = 0
     textLabel.Parent = background
 
+    -- Calculate speeds based on type
+    local typingSpeed = 0.05
+    local tweenSpeedMultiplier = 1
+    
+    if type == NotificationLib.Types.FAST then
+        typingSpeed = 0.05 / 1.8
+        tweenSpeedMultiplier = 1 / 1.8
+    elseif type == NotificationLib.Types.INSTANT then
+        typingSpeed = 0.05 / 3
+        tweenSpeedMultiplier = 1 / 3
+    elseif type == NotificationLib.Types.NODELAY then
+        typingSpeed = 0
+        tweenSpeedMultiplier = 0
+    end
+
     -- Hover effect for entire notification
     local hoverConn = outerFrame.MouseEnter:Connect(function()
         for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
             game:GetService("TweenService"):Create(
                 element,
-                TweenInfo.new(0.2),
+                TweenInfo.new(0.2 * tweenSpeedMultiplier),
                 {
                     BackgroundTransparency = element:IsA("TextLabel") and 0.8 or 0.8,
                     TextTransparency = element:IsA("TextLabel") and 0.2 or nil
@@ -182,7 +214,7 @@ function NotificationLib:CreateNotification(text, duration, color)
         for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
             game:GetService("TweenService"):Create(
                 element,
-                TweenInfo.new(0.2),
+                TweenInfo.new(0.2 * tweenSpeedMultiplier),
                 {
                     BackgroundTransparency = element:IsA("TextLabel") and 1 or 0,
                     TextTransparency = element:IsA("TextLabel") and 0 or nil
@@ -199,26 +231,37 @@ function NotificationLib:CreateNotification(text, duration, color)
         progressBar = progressBar,
         textLabel = textLabel,
         remove = nil,
-        connections = {hoverConn}
+        connections = {hoverConn},
+        type = type
     }
     table.insert(self.activeNotifications, notification)
 
     self:UpdatePositions()
 
-    local typingSpeed = 0.05
-    task.spawn(function()
-        self:TypeWriter(textLabel, text, typingSpeed)
-    end)
+    -- Handle typing animation based on type
+    if type == NotificationLib.Types.NODELAY then
+        textLabel.Text = text
+    else
+        task.spawn(function()
+            self:TypeWriter(textLabel, text, typingSpeed, type)
+        end)
+    end
 
-    local typingDuration = #text * typingSpeed
+    local typingDuration = type == NotificationLib.Types.NODELAY and 0 or (#text * typingSpeed)
 
-    task.delay(typingDuration, function()
-        game:GetService("TweenService"):Create(
-            progressBar,
-            TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-            {Size = UDim2.new(0, 0, 0, 1)}
-        ):Play()
-    end)
+    -- Handle progress bar animation
+    if type == NotificationLib.Types.NODELAY then
+        -- No progress bar animation for nodelay
+        progressBar.Visible = false
+    else
+        task.delay(typingDuration, function()
+            game:GetService("TweenService"):Create(
+                progressBar,
+                TweenInfo.new(duration * tweenSpeedMultiplier, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+                {Size = UDim2.new(0, 0, 0, 1)}
+            ):Play()
+        end)
+    end
 
     local function Remove()
         for i, notif in ipairs(self.activeNotifications) do
@@ -238,9 +281,16 @@ function NotificationLib:CreateNotification(text, duration, color)
 
         local fadeOutGroup = {}
         
+        if type == NotificationLib.Types.NODELAY then
+            -- Instant removal for nodelay
+            outerFrame:Destroy()
+            self:UpdatePositions()
+            return
+        end
+        
         table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
             outerFrame,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            TweenInfo.new(0.3 * tweenSpeedMultiplier, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
             {
                 Position = UDim2.new(0, 10, 0, outerFrame.Position.Y.Offset - 20),
                 Size = UDim2.new(0, 0, 0, outerFrame.AbsoluteSize.Y),
@@ -252,7 +302,7 @@ function NotificationLib:CreateNotification(text, duration, color)
         for _, element in pairs({holder, background, accentBar, progressBar, textLabel}) do
             table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
                 element,
-                TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                TweenInfo.new(0.3 * tweenSpeedMultiplier, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
                 element:IsA("TextLabel") and {TextTransparency = 1} or {BackgroundTransparency = 1}
             ))
         end
@@ -261,7 +311,7 @@ function NotificationLib:CreateNotification(text, duration, color)
             tween:Play()
         end
         
-        task.delay(0.3, function()
+        task.delay(0.3 * tweenSpeedMultiplier, function()
             outerFrame:Destroy()
             self:UpdatePositions()
         end)
@@ -274,13 +324,15 @@ function NotificationLib:CreateNotification(text, duration, color)
     return notification
 end
 
-function NotificationLib:Notify(text, duration, color)
+function NotificationLib:Notify(text, duration, color, type)
     task.spawn(function()
-        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255))
+        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255), type or NotificationLib.Types.NORMAL)
     end)
 end
 
-function NotificationLib:WelcomePlayer()
+function NotificationLib:WelcomePlayer(type)
+    type = type or NotificationLib.Types.NORMAL
+    
     if not self.ready then
         -- Queue the welcome message if game isn't loaded yet
         task.spawn(function()
@@ -290,7 +342,7 @@ function NotificationLib:WelcomePlayer()
             local playerName = game:GetService("Players").LocalPlayer.Name
             local displayName = game:GetService("Players").LocalPlayer.DisplayName
             local welcomeName = displayName ~= playerName and displayName or playerName
-            self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+            self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0), type)
         end)
         return
     end
@@ -298,7 +350,7 @@ function NotificationLib:WelcomePlayer()
     local playerName = game:GetService("Players").LocalPlayer.Name
     local displayName = game:GetService("Players").LocalPlayer.DisplayName
     local welcomeName = displayName ~= playerName and displayName or playerName
-    self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0))
+    self:Notify("Welcome, "..welcomeName.."!", 5, Color3.fromRGB(255, 215, 0), type)
 end
 
 function NotificationLib:Destroy()
