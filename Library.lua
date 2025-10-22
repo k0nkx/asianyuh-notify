@@ -1,8 +1,10 @@
 local NotificationLib = {}
 NotificationLib.__index = NotificationLib
 
+-- Store a reference to the current instance
 local currentInstance = nil
 
+-- Notification types
 NotificationLib.Types = {
     NORMAL = "normal",
     FAST = "fast", 
@@ -11,6 +13,7 @@ NotificationLib.Types = {
 }
 
 function NotificationLib.new()
+    -- Clean up previous instance if it exists
     if currentInstance then
         currentInstance:Destroy()
     end
@@ -26,21 +29,26 @@ function NotificationLib.new()
     self.ready = false
     self.queuedNotifications = {}
     
+    -- Wait for game to fully load
     task.spawn(function()
+        -- Wait for player to be loaded
         local player = game:GetService("Players").LocalPlayer
         while not player.Character do
             player.CharacterAdded:Wait()
-            task.wait(1)
+            task.wait(1) -- Additional buffer time
         end
         
+        -- Additional loading checks if needed
         if game:IsLoaded() == false then
             game.Loaded:Wait()
         end
         
+        -- Wait for the core UI to be ready
         task.wait(1)
         
         self.ready = true
         
+        -- Process any queued notifications
         for _, notificationData in ipairs(self.queuedNotifications) do
             self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color, notificationData.type)
         end
@@ -64,7 +72,8 @@ function NotificationLib:UpdatePositions()
 end
 
 function NotificationLib:TypeWriter(textLabel, fullText, speed, type)
-    if type == NotificationLib.Types.NODELAY then
+    if type == NotificationLib.Types.INSTANT or type == NotificationLib.Types.NODELAY then
+        -- Instant text display
         textLabel.Text = fullText
         return
     end
@@ -98,8 +107,6 @@ function NotificationLib:TypeWriter(textLabel, fullText, speed, type)
 end
 
 function NotificationLib:CreateNotification(text, duration, color, type)
-    type = type or NotificationLib.Types.NORMAL
-    
     if not self.ready then
         table.insert(self.queuedNotifications, {
             text = text,
@@ -109,6 +116,9 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         })
         return
     end
+
+    -- Set default type to NORMAL if not provided
+    type = type or NotificationLib.Types.NORMAL
 
     local textService = game:GetService("TextService")
     local textWidth = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(10000, 10000)).X
@@ -172,16 +182,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     textLabel.TextTransparency = 0
     textLabel.Parent = background
 
-    local typingSpeed = 0.05
-    
-    if type == NotificationLib.Types.FAST then
-        typingSpeed = 0.05 / 1.8
-    elseif type == NotificationLib.Types.INSTANT then
-        typingSpeed = 0.05 / 3
-    elseif type == NotificationLib.Types.NODELAY then
-        typingSpeed = 0
-    end
-
+    -- Hover effect for entire notification
     local hoverConn = outerFrame.MouseEnter:Connect(function()
         for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
             game:GetService("TweenService"):Create(
@@ -216,24 +217,42 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         progressBar = progressBar,
         textLabel = textLabel,
         remove = nil,
-        connections = {hoverConn},
-        type = type
+        connections = {hoverConn}
     }
     table.insert(self.activeNotifications, notification)
 
     self:UpdatePositions()
 
-    local typingDuration = 0
+    -- Calculate typing speed based on type
+    local baseSpeed = 0.05
+    local typingSpeed = baseSpeed
+    
+    if type == NotificationLib.Types.FAST then
+        typingSpeed = baseSpeed / 1.8  -- 1.8x faster
+    elseif type == NotificationLib.Types.INSTANT then
+        typingSpeed = baseSpeed / 3  -- 3x faster
+    elseif type == NotificationLib.Types.NODELAY then
+        typingSpeed = 0  -- Instant
+    end
+
+    -- Handle text animation based on type
     if type == NotificationLib.Types.NODELAY then
+        -- No animations at all, just set text immediately
         textLabel.Text = text
     else
+        -- Use typewriter effect with calculated speed
         task.spawn(function()
             self:TypeWriter(textLabel, text, typingSpeed, type)
         end)
-        typingDuration = #text * typingSpeed
     end
 
-    if type ~= NotificationLib.Types.NODELAY then
+    local typingDuration = type == NotificationLib.Types.NODELAY and 0 or (#text * typingSpeed)
+
+    -- Handle progress bar animation
+    if type == NotificationLib.Types.NODELAY then
+        -- No progress bar animation for nodelay
+        progressBar.Size = UDim2.new(0, 0, 0, 1)
+    else
         task.delay(typingDuration, function()
             game:GetService("TweenService"):Create(
                 progressBar,
@@ -241,8 +260,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
                 {Size = UDim2.new(0, 0, 0, 1)}
             ):Play()
         end)
-    else
-        progressBar.Visible = false
     end
 
     local function Remove()
@@ -262,12 +279,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         end
 
         local fadeOutGroup = {}
-        
-        if type == NotificationLib.Types.NODELAY then
-            outerFrame:Destroy()
-            self:UpdatePositions()
-            return
-        end
         
         table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
             outerFrame,
@@ -300,22 +311,20 @@ function NotificationLib:CreateNotification(text, duration, color, type)
 
     notification.remove = Remove
 
-    local totalDisplayTime = typingDuration + duration
-    task.delay(totalDisplayTime, Remove)
+    task.delay(typingDuration + duration, Remove)
     
     return notification
 end
 
 function NotificationLib:Notify(text, duration, color, type)
     task.spawn(function()
-        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255), type or NotificationLib.Types.NORMAL)
+        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255), type)
     end)
 end
 
 function NotificationLib:WelcomePlayer(type)
-    type = type or NotificationLib.Types.NORMAL
-    
     if not self.ready then
+        -- Queue the welcome message if game isn't loaded yet
         task.spawn(function()
             while not self.ready do
                 task.wait()
@@ -335,6 +344,7 @@ function NotificationLib:WelcomePlayer(type)
 end
 
 function NotificationLib:Destroy()
+    -- Clear the current instance reference if it's this one
     if currentInstance == self then
         currentInstance = nil
     end
