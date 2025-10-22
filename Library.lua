@@ -7,9 +7,9 @@ local currentInstance = nil
 -- Notification types
 NotificationLib.Types = {
     NORMAL = "normal",      -- Current behavior
-    FAST = "fast",          -- 1.8x faster animations
-    INSTANT = "instant",    -- 3x faster animations
-    NODELAY = "nodelay"     -- Instant animations except slide in/out
+    FAST = "fast",          -- 1.8x faster text animation
+    INSTANT = "instant",    -- 3x faster text animation
+    NODELAY = "nodelay"     -- Instant text, no animations
 }
 
 function NotificationLib.new()
@@ -181,27 +181,23 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     textLabel.TextTransparency = 0
     textLabel.Parent = background
 
-    -- Calculate speeds based on type
+    -- Calculate typing speed based on type (duration remains unchanged)
     local typingSpeed = 0.05
-    local tweenSpeedMultiplier = 1
     
     if type == NotificationLib.Types.FAST then
         typingSpeed = 0.05 / 1.8
-        tweenSpeedMultiplier = 1 / 1.8
     elseif type == NotificationLib.Types.INSTANT then
         typingSpeed = 0.05 / 3
-        tweenSpeedMultiplier = 1 / 3
     elseif type == NotificationLib.Types.NODELAY then
         typingSpeed = 0
-        tweenSpeedMultiplier = 0
     end
 
-    -- Hover effect for entire notification
+    -- Hover effect for entire notification (always normal speed)
     local hoverConn = outerFrame.MouseEnter:Connect(function()
         for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
             game:GetService("TweenService"):Create(
                 element,
-                TweenInfo.new(0.2 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1)),
+                TweenInfo.new(0.2),
                 {
                     BackgroundTransparency = element:IsA("TextLabel") and 0.8 or 0.8,
                     TextTransparency = element:IsA("TextLabel") and 0.2 or nil
@@ -214,7 +210,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
             game:GetService("TweenService"):Create(
                 element,
-                TweenInfo.new(0.2 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1)),
+                TweenInfo.new(0.2),
                 {
                     BackgroundTransparency = element:IsA("TextLabel") and 1 or 0,
                     TextTransparency = element:IsA("TextLabel") and 0 or nil
@@ -249,12 +245,11 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         typingDuration = #text * typingSpeed
     end
 
-    -- Start progress bar animation immediately but sync it with total display time
-    local progressBarDuration = duration
+    -- Progress bar always takes the full duration (unaffected by type)
     if type ~= NotificationLib.Types.NODELAY then
         game:GetService("TweenService"):Create(
             progressBar,
-            TweenInfo.new(progressBarDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+            TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
             {Size = UDim2.new(0, 0, 0, 1)}
         ):Play()
     else
@@ -277,18 +272,19 @@ function NotificationLib:CreateNotification(text, duration, color, type)
             end
         end
 
-        local fadeOutGroup = {}
+        local fadeOutGroup = []
         
         if type == NotificationLib.Types.NODELAY then
-            -- Instant removal for nodelay
+            -- Instant removal for nodelay (but still with slide out)
             outerFrame:Destroy()
             self:UpdatePositions()
             return
         end
         
+        -- Normal slide-out animation (unaffected by type)
         table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
             outerFrame,
-            TweenInfo.new(0.3 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
             {
                 Position = UDim2.new(0, 10, 0, outerFrame.Position.Y.Offset - 20),
                 Size = UDim2.new(0, 0, 0, outerFrame.AbsoluteSize.Y),
@@ -300,7 +296,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         for _, element in pairs({holder, background, accentBar, progressBar, textLabel}) do
             table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
                 element,
-                TweenInfo.new(0.3 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
                 element:IsA("TextLabel") and {TextTransparency = 1} or {BackgroundTransparency = 1}
             ))
         end
@@ -309,7 +305,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
             tween:Play()
         end
         
-        task.delay(0.3 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1), function()
+        task.delay(0.3, function()
             outerFrame:Destroy()
             self:UpdatePositions()
         end)
@@ -317,7 +313,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
 
     notification.remove = Remove
 
-    -- Schedule removal after the full duration (including typing time)
+    -- Schedule removal after the full duration (typing time + specified duration)
     local totalDisplayTime = typingDuration + duration
     task.delay(totalDisplayTime, Remove)
     
@@ -374,4 +370,4 @@ function NotificationLib:Destroy()
     self.queuedNotifications = nil
 end
 
-return NotificationLibvvvvvvvvvvvvvvvvvvvvv
+return NotificationLib
