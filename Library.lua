@@ -201,7 +201,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
             game:GetService("TweenService"):Create(
                 element,
-                TweenInfo.new(0.2 * tweenSpeedMultiplier),
+                TweenInfo.new(0.2 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1)),
                 {
                     BackgroundTransparency = element:IsA("TextLabel") and 0.8 or 0.8,
                     TextTransparency = element:IsA("TextLabel") and 0.2 or nil
@@ -214,7 +214,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         for _, element in pairs({outerFrame, holder, background, accentBar, progressBar, textLabel}) do
             game:GetService("TweenService"):Create(
                 element,
-                TweenInfo.new(0.2 * tweenSpeedMultiplier),
+                TweenInfo.new(0.2 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1)),
                 {
                     BackgroundTransparency = element:IsA("TextLabel") and 1 or 0,
                     TextTransparency = element:IsA("TextLabel") and 0 or nil
@@ -257,7 +257,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         task.delay(typingDuration, function()
             game:GetService("TweenService"):Create(
                 progressBar,
-                TweenInfo.new(duration * tweenSpeedMultiplier, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+                TweenInfo.new(duration * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1), Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
                 {Size = UDim2.new(0, 0, 0, 1)}
             ):Play()
         end)
@@ -290,7 +290,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         
         table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
             outerFrame,
-            TweenInfo.new(0.3 * tweenSpeedMultiplier, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            TweenInfo.new(0.3 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
             {
                 Position = UDim2.new(0, 10, 0, outerFrame.Position.Y.Offset - 20),
                 Size = UDim2.new(0, 0, 0, outerFrame.AbsoluteSize.Y),
@@ -302,7 +302,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         for _, element in pairs({holder, background, accentBar, progressBar, textLabel}) do
             table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
                 element,
-                TweenInfo.new(0.3 * tweenSpeedMultiplier, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                TweenInfo.new(0.3 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
                 element:IsA("TextLabel") and {TextTransparency = 1} or {BackgroundTransparency = 1}
             ))
         end
@@ -311,7 +311,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
             tween:Play()
         end
         
-        task.delay(0.3 * tweenSpeedMultiplier, function()
+        task.delay(0.3 * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1), function()
             outerFrame:Destroy()
             self:UpdatePositions()
         end)
@@ -319,7 +319,10 @@ function NotificationLib:CreateNotification(text, duration, color, type)
 
     notification.remove = Remove
 
-    task.delay(typingDuration + duration, Remove)
+    -- Calculate total display time (typing + duration)
+    local totalDisplayTime = typingDuration + duration
+    
+    task.delay(totalDisplayTime, Remove)
     
     return notification
 end
