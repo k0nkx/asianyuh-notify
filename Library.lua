@@ -239,28 +239,26 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     self:UpdatePositions()
 
     -- Handle typing animation based on type
+    local typingDuration = 0
     if type == NotificationLib.Types.NODELAY then
         textLabel.Text = text
     else
         task.spawn(function()
             self:TypeWriter(textLabel, text, typingSpeed, type)
         end)
+        typingDuration = #text * typingSpeed
     end
 
-    local typingDuration = type == NotificationLib.Types.NODELAY and 0 or (#text * typingSpeed)
-
-    -- Handle progress bar animation
-    if type == NotificationLib.Types.NODELAY then
-        -- No progress bar animation for nodelay
-        progressBar.Visible = false
+    -- Start progress bar animation immediately but sync it with total display time
+    local progressBarDuration = duration
+    if type ~= NotificationLib.Types.NODELAY then
+        game:GetService("TweenService"):Create(
+            progressBar,
+            TweenInfo.new(progressBarDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+            {Size = UDim2.new(0, 0, 0, 1)}
+        ):Play()
     else
-        task.delay(typingDuration, function()
-            game:GetService("TweenService"):Create(
-                progressBar,
-                TweenInfo.new(duration * (tweenSpeedMultiplier > 0 and tweenSpeedMultiplier or 1), Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-                {Size = UDim2.new(0, 0, 0, 1)}
-            ):Play()
-        end)
+        progressBar.Visible = false
     end
 
     local function Remove()
@@ -319,9 +317,8 @@ function NotificationLib:CreateNotification(text, duration, color, type)
 
     notification.remove = Remove
 
-    -- Calculate total display time (typing + duration)
+    -- Schedule removal after the full duration (including typing time)
     local totalDisplayTime = typingDuration + duration
-    
     task.delay(totalDisplayTime, Remove)
     
     return notification
@@ -377,4 +374,4 @@ function NotificationLib:Destroy()
     self.queuedNotifications = nil
 end
 
-return NotificationLib
+return NotificationLibvvvvvvvvvvvvvvvvvvvvv
