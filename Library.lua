@@ -12,9 +12,6 @@ NotificationLib.Types = {
     NODELAY = "nodelay"
 }
 
--- Start with a high base ZIndex to ensure it's above other elements
-local BASE_ZINDEX = 100000
-
 function NotificationLib.new()
     -- Clean up previous instance if it exists
     if currentInstance then
@@ -26,17 +23,11 @@ function NotificationLib.new()
     
     self.container = Instance.new("ScreenGui")
     self.container.Name = "NotificationContainer_" .. tostring(math.random(1, 1000000))
-    -- Set to Global to ensure it renders on top of other ScreenGuis
-    self.container.ZIndexBehavior = Enum.ZIndexBehavior.Global
-    self.container.DisplayOrder = 99999 -- Very high display order
-    self.container.IgnoreGuiInset = true -- Ensure full screen coverage
-    self.container.Enabled = true
+    self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    
     self.activeNotifications = {}
     self.ready = false
     self.queuedNotifications = {}
-    self.currentZIndex = BASE_ZINDEX
     
     -- Wait for game to fully load
     task.spawn(function()
@@ -133,9 +124,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     local textWidth = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(10000, 10000)).X
     local minWidth = math.max(textWidth + 24, 150)
 
-    -- Increment ZIndex for each new notification
-    self.currentZIndex = self.currentZIndex + 1
-    
     local outerFrame = Instance.new("Frame")
     outerFrame.Name = "OuterFrame"
     outerFrame.Position = UDim2.new(0, -minWidth - 2, 0, -32)
@@ -145,7 +133,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     outerFrame.BorderSizePixel = 1
     outerFrame.BorderColor3 = Color3.fromRGB(40, 40, 40)
     outerFrame.ClipsDescendants = true
-    outerFrame.ZIndex = self.currentZIndex + 4
     outerFrame.Parent = self.container
 
     local holder = Instance.new("Frame")
@@ -156,7 +143,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     holder.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
     holder.BorderSizePixel = 0
     holder.ClipsDescendants = true
-    holder.ZIndex = self.currentZIndex + 5
     holder.Parent = outerFrame
 
     local background = Instance.new("Frame")
@@ -165,7 +151,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     background.Position = UDim2.new(0, 2, 0, 2)
     background.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
     background.BorderSizePixel = 0
-    background.ZIndex = self.currentZIndex + 6
     background.Parent = holder
 
     local accentBar = Instance.new("Frame")
@@ -174,7 +159,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     accentBar.Position = UDim2.new(0, 0, 0, 0)
     accentBar.BackgroundColor3 = color
     accentBar.BorderSizePixel = 0
-    accentBar.ZIndex = self.currentZIndex + 7
     accentBar.Parent = background
 
     local progressBar = Instance.new("Frame")
@@ -183,7 +167,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     progressBar.Position = UDim2.new(0, 0, 1, -1)
     progressBar.BackgroundColor3 = color
     progressBar.BorderSizePixel = 0
-    progressBar.ZIndex = self.currentZIndex + 8
     progressBar.Parent = background
 
     local textLabel = Instance.new("TextLabel")
@@ -197,7 +180,6 @@ function NotificationLib:CreateNotification(text, duration, color, type)
     textLabel.TextSize = 12
     textLabel.BackgroundTransparency = 1
     textLabel.TextTransparency = 0
-    textLabel.ZIndex = self.currentZIndex + 9
     textLabel.Parent = background
 
     -- Hover effect for entire notification
@@ -235,8 +217,7 @@ function NotificationLib:CreateNotification(text, duration, color, type)
         progressBar = progressBar,
         textLabel = textLabel,
         remove = nil,
-        connections = {hoverConn},
-        zIndex = self.currentZIndex
+        connections = {hoverConn}
     }
     table.insert(self.activeNotifications, notification)
 
@@ -381,7 +362,6 @@ function NotificationLib:Destroy()
     self.activeNotifications = nil
     self.container = nil
     self.queuedNotifications = nil
-    self.currentZIndex = nil
 end
 
 return NotificationLib
