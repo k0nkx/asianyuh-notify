@@ -10,6 +10,3 @@ Notif:Notify("This is a normal notification", 5, Color3.fromRGB(255, 50, 50), No
 Notif:Notify("Fast typing notification", 5, Color3.fromRGB(50, 255, 50), NotificationLib.Types.FAST)
 Notif:Notify("Instant notification", 5, Color3.fromRGB(50, 50, 255), NotificationLib.Types.INSTANT)
 Notif:Notify("No delay notification", 5, Color3.fromRGB(255, 255, 50), NotificationLib.Types.NODELAY)
-
--- Useful for game scripts
-Notif:Notify("Script loaded successfully!", 3, Color3.fromRGB(0, 255, 0), NotificationLib.Types.FAST)
