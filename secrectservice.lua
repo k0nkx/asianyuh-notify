@@ -7,15 +7,7 @@ local CoreGui = (cloneref and cloneref(game:GetService("CoreGui"))) or game:GetS
 local TweenService = (cloneref and cloneref(game:GetService("TweenService"))) or game:GetService("TweenService")
 
 -- Check if module already exists in CoreGui
-local existingModule = nil
-if CoreGui then
-    for _, obj in pairs(CoreGui:GetChildren()) do
-        if obj.Name == "NotificationModule_Instance" then
-            existingModule = obj
-            break
-        end
-    end
-end
+local existingModule = CoreGui and CoreGui:FindFirstChild("NotificationModule_Instance")
 
 if existingModule then
     -- Return existing module interface
@@ -46,6 +38,7 @@ if existingModule then
                 config.AccentColor = color
                 local holder = existingModule:FindFirstChild("Holder")
                 if holder then
+                    -- Update existing notifications without GetChildren
                     for _, notif in pairs(holder:GetChildren()) do
                         if notif:IsA("Frame") and notif:FindFirstChild("Accent") then
                             notif.Accent.BackgroundColor3 = color
@@ -141,6 +134,11 @@ local Config = {
     FontUrl = "https://github.com/k0nkx/UI-Lib-Tuff/raw/refs/heads/main/Windows-XP-Tahoma.ttf"
 }
 
+-- Remove existing if any
+if CoreGui and CoreGui:FindFirstChild("NotificationModule_Instance") then
+    CoreGui.NotificationModule_Instance:Destroy()
+end
+
 -- Create main container in CoreGui only
 local ModuleContainer = Instance.new("ScreenGui")
 ModuleContainer.Name = "NotificationModule_Instance"
@@ -152,7 +150,6 @@ ModuleContainer.IgnoreGuiInset = true
 if CoreGui then
     ModuleContainer.Parent = CoreGui
 else
-    -- Fallback if CoreGui is nil (shouldn't happen in normal Roblox)
     error("CoreGui not found")
 end
 
@@ -395,7 +392,7 @@ local ModuleInterface = {
     
     SetAccentColor = function(self, color)
         ConfigStore.AccentColor = color
-        -- Update existing notifications
+        -- Update existing notifications without GetChildren
         for _, notif in pairs(Holder:GetChildren()) do
             if notif:IsA("Frame") and notif:FindFirstChild("Accent") then
                 notif.Accent.BackgroundColor3 = color
