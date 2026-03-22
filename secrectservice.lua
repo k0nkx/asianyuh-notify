@@ -1,23 +1,31 @@
+-- NotificationModule.lua
 local NotificationModule = {}
 
+-- Get services safely
+local HttpService = (cloneref and cloneref(game:GetService("HttpService"))) or game:GetService("HttpService")
+local CoreGui = (cloneref and cloneref(game:GetService("CoreGui"))) or game:GetService("CoreGui")
+local TweenService = (cloneref and cloneref(game:GetService("TweenService"))) or game:GetService("TweenService")
+
+-- Check if module already exists in CoreGui
 local existingModule = nil
-for _, obj in pairs(coreGui:GetChildren()) do
-    if obj.Name == "NotificationModule_Instance" then
-        existingModule = obj
-        break
+if CoreGui then
+    for _, obj in pairs(CoreGui:GetChildren()) do
+        if obj.Name == "NotificationModule_Instance" then
+            existingModule = obj
+            break
+        end
     end
 end
 
 if existingModule then
+    -- Return existing module interface
     local moduleInterface = {
         Initialize = function(self, config)
-            if existingModule:FindFirstChild("Config") then
-                local configFrame = existingModule.Config
-                if config then
-                    for key, value in pairs(config) do
-                        if configFrame[key] ~= nil then
-                            configFrame[key] = value
-                        end
+            local configFrame = existingModule:FindFirstChild("Config")
+            if configFrame and config then
+                for key, value in pairs(config) do
+                    if configFrame[key] ~= nil then
+                        configFrame[key] = value
                     end
                 end
             end
@@ -25,7 +33,10 @@ if existingModule then
         end,
         
         Notify = function(self, title, content, duration)
-            existingModule:WaitForChild("Notifier"):Notify(title, content, duration or 5)
+            local notifier = existingModule:FindFirstChild("Notifier")
+            if notifier and notifier.Notify then
+                notifier:Notify(title, content, duration or 5)
+            end
             return self
         end,
         
@@ -33,16 +44,19 @@ if existingModule then
             local config = existingModule:FindFirstChild("Config")
             if config then
                 config.AccentColor = color
-                for _, notif in pairs(existingModule.Holder:GetChildren()) do
-                    if notif:IsA("Frame") and notif:FindFirstChild("Accent") then
-                        notif.Accent.BackgroundColor3 = color
-                        if notif.Accent:FindFirstChild("Gradient") then
-                            local gradient = notif.Accent.Gradient
-                            gradient.Color = ColorSequence.new({
-                                ColorSequenceKeypoint.new(0, color),
-                                ColorSequenceKeypoint.new(0.5, color),
-                                ColorSequenceKeypoint.new(1, color)
-                            })
+                local holder = existingModule:FindFirstChild("Holder")
+                if holder then
+                    for _, notif in pairs(holder:GetChildren()) do
+                        if notif:IsA("Frame") and notif:FindFirstChild("Accent") then
+                            notif.Accent.BackgroundColor3 = color
+                            local gradient = notif.Accent:FindFirstChild("Gradient")
+                            if gradient then
+                                gradient.Color = ColorSequence.new({
+                                    ColorSequenceKeypoint.new(0, color),
+                                    ColorSequenceKeypoint.new(0.5, color),
+                                    ColorSequenceKeypoint.new(1, color)
+                                })
+                            end
                         end
                     end
                 end
@@ -54,9 +68,12 @@ if existingModule then
             local config = existingModule:FindFirstChild("Config")
             if config then
                 config.BackgroundColor = color
-                for _, notif in pairs(existingModule.Holder:GetChildren()) do
-                    if notif:IsA("Frame") and notif:FindFirstChild("Main") then
-                        notif.Main.BackgroundColor3 = color
+                local holder = existingModule:FindFirstChild("Holder")
+                if holder then
+                    for _, notif in pairs(holder:GetChildren()) do
+                        if notif:IsA("Frame") then
+                            notif.BackgroundColor3 = color
+                        end
                     end
                 end
             end
@@ -110,10 +127,7 @@ if existingModule then
     return moduleInterface
 end
 
-local HttpService = (cloneref and cloneref(game:GetService("HttpService"))) or game:GetService("HttpService")
-local CoreGui = (cloneref and cloneref(game:GetService("CoreGui"))) or game:GetService("CoreGui")
-local TweenService = (cloneref and cloneref(game:GetService("TweenService"))) or game:GetService("TweenService")
-
+-- Configuration
 local Config = {
     AccentColor = Color3.fromRGB(120, 100, 180),
     BackgroundColor = Color3.fromRGB(15, 15, 15),
@@ -134,9 +148,15 @@ ModuleContainer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ModuleContainer.ResetOnSpawn = false
 ModuleContainer.IgnoreGuiInset = true
 
-local parent = CoreGui
-ModuleContainer.Parent = parent
+-- Parent to CoreGui only
+if CoreGui then
+    ModuleContainer.Parent = CoreGui
+else
+    -- Fallback if CoreGui is nil (shouldn't happen in normal Roblox)
+    error("CoreGui not found")
+end
 
+-- Store config in container
 local ConfigStore = Instance.new("Folder")
 ConfigStore.Name = "Config"
 for key, value in pairs(Config) do
@@ -144,6 +164,7 @@ for key, value in pairs(Config) do
 end
 ConfigStore.Parent = ModuleContainer
 
+-- Create holder for notifications
 local Holder = Instance.new("Frame")
 Holder.Name = "Holder"
 Holder.BackgroundTransparency = 1
@@ -156,26 +177,35 @@ local Layout = Instance.new("UIListLayout", Holder)
 Layout.VerticalAlignment = Enum.VerticalAlignment.Top
 Layout.Padding = UDim.new(0, Config.Padding)
 
+-- Load font
 local fontFace = nil
 local function loadFont()
-    if not isfile(Config.FontName .. ".ttf") then
-        writefile(Config.FontName .. ".ttf", game:HttpGet(Config.FontUrl))
+    local success, err = pcall(function()
+        if not isfile(Config.FontName .. ".ttf") then
+            writefile(Config.FontName .. ".ttf", game:HttpGet(Config.FontUrl))
+        end
+        
+        writefile(Config.FontName .. ".font", HttpService:JSONEncode({
+            name = Config.FontName,
+            faces = {{
+                name = "Regular", 
+                weight = 400, 
+                style = "normal",
+                assetId = getcustomasset(Config.FontName .. ".ttf")
+            }}
+        }))
+        
+        fontFace = Font.new(getcustomasset(Config.FontName .. ".font"), Enum.FontWeight.Regular)
+    end)
+    
+    if not success then
+        -- Fallback to default font if custom font fails
+        fontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular)
     end
-    
-    writefile(Config.FontName .. ".font", HttpService:JSONEncode({
-        name = Config.FontName,
-        faces = {{
-            name = "Regular", 
-            weight = 400, 
-            style = "normal",
-            assetId = getcustomasset(Config.FontName .. ".ttf")
-        }}
-    }))
-    
-    fontFace = Font.new(getcustomasset(Config.FontName .. ".font"), Enum.FontWeight.Regular)
 end
 loadFont()
 
+-- Notification creation function
 local function createNotification(title, content, duration)
     local Main = Instance.new("Frame")
     Main.BackgroundColor3 = ConfigStore.BackgroundColor
@@ -185,6 +215,7 @@ local function createNotification(title, content, duration)
     Main.BackgroundTransparency = 1
     Main.Parent = Holder
     
+    -- Glow effect
     local Glow = Instance.new("ImageLabel")
     Glow.Name = "Glow"
     Glow.BackgroundTransparency = 1
@@ -198,14 +229,17 @@ local function createNotification(title, content, duration)
     Glow.ZIndex = 1
     Glow.Parent = Main
     
+    -- Corner radius
     local Corner = Instance.new("UICorner", Main)
     Corner.CornerRadius = UDim.new(0, 4)
     
+    -- Stroke
     local Stroke = Instance.new("UIStroke", Main)
     Stroke.Color = Color3.fromRGB(45, 45, 45)
     Stroke.Thickness = 1
     Stroke.Transparency = 1
     
+    -- Accent bar
     local Accent = Instance.new("Frame")
     Accent.BackgroundColor3 = ConfigStore.AccentColor
     Accent.BorderSizePixel = 0
@@ -215,6 +249,7 @@ local function createNotification(title, content, duration)
     Accent.BackgroundTransparency = 1
     Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 4)
     
+    -- Gradient for accent bar
     local Gradient = Instance.new("UIGradient")
     Gradient.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, ConfigStore.AccentColor),
@@ -228,11 +263,14 @@ local function createNotification(title, content, duration)
     })
     Gradient.Parent = Accent
     
+    -- Title text
     local TitleLabel = Instance.new("TextLabel")
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.Position = UDim2.new(0, 12, 0, 10)
     TitleLabel.Size = UDim2.new(1, -24, 0, 20)
-    TitleLabel.FontFace = fontFace
+    if fontFace then
+        TitleLabel.FontFace = fontFace
+    end
     TitleLabel.Text = title
     TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
     TitleLabel.TextSize = 16
@@ -241,11 +279,14 @@ local function createNotification(title, content, duration)
     TitleLabel.Parent = Main
     TitleLabel.TextTransparency = 1
     
+    -- Description text
     local Description = Instance.new("TextLabel")
     Description.BackgroundTransparency = 1
     Description.Position = UDim2.new(0, 12, 0, 32)
     Description.Size = UDim2.new(1, -24, 0, 20)
-    Description.FontFace = fontFace
+    if fontFace then
+        Description.FontFace = fontFace
+    end
     Description.Text = content
     Description.TextColor3 = Color3.fromRGB(160, 160, 160)
     Description.TextSize = 14
@@ -254,6 +295,7 @@ local function createNotification(title, content, duration)
     Description.Parent = Main
     Description.TextTransparency = 1
     
+    -- Fade in animation
     local fadeIn = TweenService:Create(Main, TweenInfo.new(ConfigStore.FadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         BackgroundTransparency = 0
     })
@@ -280,6 +322,7 @@ local function createNotification(title, content, duration)
     titleFadeIn:Play()
     descFadeIn:Play()
     
+    -- Fade out and destroy
     task.delay(duration or ConfigStore.DefaultDuration, function()
         local fadeOut = TweenService:Create(Main, TweenInfo.new(ConfigStore.FadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             BackgroundTransparency = 1
@@ -314,19 +357,23 @@ local function createNotification(title, content, duration)
     return Main
 end
 
+-- Create notifier interface
 local Notifier = {}
 function Notifier:Notify(title, content, duration)
     createNotification(title, content, duration)
 end
 
+-- Store notifier in container
 local NotifierInstance = Instance.new("Folder")
 NotifierInstance.Name = "Notifier"
 NotifierInstance.Parent = ModuleContainer
 
+-- Add methods to notifier
 for methodName, methodFunc in pairs(Notifier) do
     NotifierInstance[methodName] = methodFunc
 end
 
+-- Create module interface
 local ModuleInterface = {
     Initialize = function(self, config)
         if config then
@@ -340,17 +387,20 @@ local ModuleInterface = {
     end,
     
     Notify = function(self, title, content, duration)
-        NotifierInstance:Notify(title, content, duration or ConfigStore.DefaultDuration)
+        if NotifierInstance and NotifierInstance.Notify then
+            NotifierInstance:Notify(title, content, duration or ConfigStore.DefaultDuration)
+        end
         return self
     end,
     
     SetAccentColor = function(self, color)
         ConfigStore.AccentColor = color
+        -- Update existing notifications
         for _, notif in pairs(Holder:GetChildren()) do
             if notif:IsA("Frame") and notif:FindFirstChild("Accent") then
                 notif.Accent.BackgroundColor3 = color
-                if notif.Accent:FindFirstChild("Gradient") then
-                    local gradient = notif.Accent.Gradient
+                local gradient = notif.Accent:FindFirstChild("Gradient")
+                if gradient then
                     gradient.Color = ColorSequence.new({
                         ColorSequenceKeypoint.new(0, color),
                         ColorSequenceKeypoint.new(0.5, color),
@@ -364,6 +414,7 @@ local ModuleInterface = {
     
     SetBackgroundColor = function(self, color)
         ConfigStore.BackgroundColor = color
+        -- Update existing notifications
         for _, notif in pairs(Holder:GetChildren()) do
             if notif:IsA("Frame") then
                 notif.BackgroundColor3 = color
