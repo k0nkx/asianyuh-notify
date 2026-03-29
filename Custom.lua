@@ -52,6 +52,7 @@ function NotificationLib.new()
     self.container = Instance.new("ScreenGui")
     self.container.Name = "NotifUi-" .. tostring(math.random(1, 1000000))
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    self.container.DisplayOrder = 999999999 -- max z-layer
     self.container.ResetOnSpawn = false
     self.container.Parent = parent
 
