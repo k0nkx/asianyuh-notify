@@ -42,8 +42,9 @@ function NotificationLib.new()
     local self = setmetatable({}, NotificationLib)
     currentInstance = self
 
-    local parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-
+    local parent = game:GetService("CoreGui")
+    if gethui then parent = gethui() end
+    
     for _, v in ipairs(parent:GetChildren()) do
         if v:IsA("ScreenGui") and string.find(v.Name, "NotifUi%-") then
             v:Destroy()
@@ -52,7 +53,7 @@ function NotificationLib.new()
     
     self.container = Instance.new("ScreenGui")
     self.container.Name = "NotifUi-" .. tostring(math.random(1, 1000000))
-    self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    self.container.ZIndexBehavior = Enum.ZIndexBehavior.Global -- GLOBAL ZINDEX
     self.container.DisplayOrder = 999999999
     self.container.ResetOnSpawn = false
     self.container.Parent = parent
@@ -124,7 +125,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     outerFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     outerFrame.BorderSizePixel = 1
     outerFrame.BorderColor3 = Color3.fromRGB(40, 40, 40)
-    outerFrame.ZIndex = 999999999
+    outerFrame.ZIndex = 2147483647 -- MAX ZINDEX
     outerFrame.Parent = self.container
 
     local holder = Instance.new("Frame")
@@ -132,7 +133,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     holder.Size = UDim2.new(1, -2, 1, -2)
     holder.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
     holder.BorderSizePixel = 0
-    holder.ZIndex = 999999999
+    holder.ZIndex = 2147483647
     holder.Parent = outerFrame
 
     local background = Instance.new("Frame")
@@ -140,7 +141,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     background.Position = UDim2.new(0, 2, 0, 2)
     background.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
     background.BorderSizePixel = 0
-    background.ZIndex = 999999999
+    background.ZIndex = 2147483647
     background.Parent = holder
 
     local progressBar = Instance.new("Frame")
@@ -148,7 +149,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     progressBar.Position = UDim2.new(0, 0, 0, 0)
     progressBar.BackgroundColor3 = color or Color3.fromRGB(255,255,255)
     progressBar.BorderSizePixel = 0
-    progressBar.ZIndex = 999999999
+    progressBar.ZIndex = 2147483647
     progressBar.Parent = background
 
     local textLabel = Instance.new("TextLabel")
@@ -163,9 +164,8 @@ function NotificationLib:CreateNotification(text, duration, color)
     textLabel.TextXAlignment = Enum.TextXAlignment.Center
     textLabel.TextYAlignment = Enum.TextYAlignment.Center
     textLabel.TextWrapped = true
-    textLabel.ZIndex = 999999999
+    textLabel.ZIndex = 2147483647
 
-    -- apply custom font if loaded
     if customFontFace then
         pcall(function()
             textLabel.FontFace = customFontFace
@@ -206,7 +206,6 @@ function NotificationLib:CreateNotification(text, duration, color)
     }
     table.insert(self.activeNotifications, 1, notification)
 
-    -- slide in smoothly
     outerFrame.Position = UDim2.new(0.5, 0, 1.2, 0)
     self:UpdatePositions()
 
