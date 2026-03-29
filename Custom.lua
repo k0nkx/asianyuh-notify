@@ -56,7 +56,7 @@ end
 function NotificationLib:UpdatePositions()
     for i, notification in ipairs(self.activeNotifications) do
         if notification and notification.outerFrame and notification.outerFrame.Parent then
-            local targetY = 20 + ((#self.activeNotifications - i) * 30)
+            local targetY = 20 + ((#self.activeNotifications - i) * 32)
             game:GetService("TweenService"):Create(
                 notification.outerFrame,
                 TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -108,7 +108,6 @@ function NotificationLib:CreateNotification(text, duration, color)
     background.BorderSizePixel = 0
     background.Parent = holder
 
-    -- TOP LINE (fixed)
     local progressBar = Instance.new("Frame")
     progressBar.Size = UDim2.new(1, 0, 0, 1)
     progressBar.Position = UDim2.new(0, 0, 0, 0)
@@ -160,8 +159,10 @@ function NotificationLib:CreateNotification(text, duration, color)
         outerFrame = outerFrame,
         connections = {hoverConn, leaveConn}
     }
-    table.insert(self.activeNotifications, notification)
+    table.insert(self.activeNotifications, 1, notification) -- insert on top
 
+    -- slide in smoothly
+    outerFrame.Position = UDim2.new(0.5, 0, 1.2, 0)
     self:UpdatePositions()
 
     local function Remove()
@@ -178,12 +179,12 @@ function NotificationLib:CreateNotification(text, duration, color)
 
         local tween = game:GetService("TweenService"):Create(
             outerFrame,
-            TweenInfo.new(0.4),
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
             {Position = UDim2.new(0.5, 0, 1.2, 0), BackgroundTransparency = 1}
         )
         tween:Play()
 
-        task.delay(0.4, function()
+        task.delay(0.35, function()
             if outerFrame then
                 outerFrame:Destroy()
             end
