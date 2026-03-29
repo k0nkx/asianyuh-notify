@@ -3,6 +3,7 @@ NotificationLib.__index = NotificationLib
 
 local currentInstance = nil
 
+-- load custom font (fallback to Ubuntu if fails)
 local function loadCustomFont()
     local success, customFontFace = pcall(function()
         local HttpService = game:GetService("HttpService")
@@ -52,7 +53,7 @@ function NotificationLib.new()
     self.container = Instance.new("ScreenGui")
     self.container.Name = "NotifUi-" .. tostring(math.random(1, 1000000))
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    self.container.DisplayOrder = 999999999 -- max z-layer
+    self.container.DisplayOrder = 999999999
     self.container.ResetOnSpawn = false
     self.container.Parent = parent
 
@@ -123,6 +124,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     outerFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     outerFrame.BorderSizePixel = 1
     outerFrame.BorderColor3 = Color3.fromRGB(40, 40, 40)
+    outerFrame.ZIndex = 999999999
     outerFrame.Parent = self.container
 
     local holder = Instance.new("Frame")
@@ -130,6 +132,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     holder.Size = UDim2.new(1, -2, 1, -2)
     holder.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
     holder.BorderSizePixel = 0
+    holder.ZIndex = 999999999
     holder.Parent = outerFrame
 
     local background = Instance.new("Frame")
@@ -137,6 +140,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     background.Position = UDim2.new(0, 2, 0, 2)
     background.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
     background.BorderSizePixel = 0
+    background.ZIndex = 999999999
     background.Parent = holder
 
     local progressBar = Instance.new("Frame")
@@ -144,6 +148,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     progressBar.Position = UDim2.new(0, 0, 0, 0)
     progressBar.BackgroundColor3 = color or Color3.fromRGB(255,255,255)
     progressBar.BorderSizePixel = 0
+    progressBar.ZIndex = 999999999
     progressBar.Parent = background
 
     local textLabel = Instance.new("TextLabel")
@@ -158,6 +163,7 @@ function NotificationLib:CreateNotification(text, duration, color)
     textLabel.TextXAlignment = Enum.TextXAlignment.Center
     textLabel.TextYAlignment = Enum.TextYAlignment.Center
     textLabel.TextWrapped = true
+    textLabel.ZIndex = 999999999
 
     -- apply custom font if loaded
     if customFontFace then
