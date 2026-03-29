@@ -23,7 +23,7 @@ function NotificationLib.new()
         local player = game:GetService("Players").LocalPlayer
         while not player.Character do
             player.CharacterAdded:Wait()
-            task.wait(1)
+            task.wait()
         end
         
         if not game:IsLoaded() then
@@ -34,8 +34,8 @@ function NotificationLib.new()
         
         self.ready = true
         
-        for _, notificationData in ipairs(self.queuedNotifications) do
-            self:CreateNotification(notificationData.text, notificationData.duration, notificationData.color)
+        for _, data in ipairs(self.queuedNotifications) do
+            self:CreateNotification(data.text, data.duration, data.color)
         end
         self.queuedNotifications = {}
     end)
@@ -49,7 +49,7 @@ function NotificationLib:UpdatePositions()
             local targetY = 20 + ((#self.activeNotifications - i) * 30)
             game:GetService("TweenService"):Create(
                 notification.outerFrame,
-                TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
                 {Position = UDim2.new(0.5, 0, 1, -targetY)}
             ):Play()
         end
@@ -67,33 +67,31 @@ function NotificationLib:CreateNotification(text, duration, color)
     end
 
     local textService = game:GetService("TextService")
-    local textWidth = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(10000, 10000)).X
-    local minWidth = math.max(textWidth + 24, 150)
+    local size = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(1000, 100))
+    
+    local paddingX = 30
+    local minWidth = 150
+    local maxWidth = 500
+    
+    local finalWidth = math.clamp(size.X + paddingX, minWidth, maxWidth)
 
     local outerFrame = Instance.new("Frame")
-    outerFrame.Name = "OuterFrame"
     outerFrame.AnchorPoint = Vector2.new(0.5, 1)
     outerFrame.Position = UDim2.new(0.5, 0, 1.2, 0)
-    outerFrame.Size = UDim2.new(0, minWidth + 4, 0, 25)
-    outerFrame.BackgroundTransparency = 0
+    outerFrame.Size = UDim2.new(0, finalWidth, 0, 26)
     outerFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     outerFrame.BorderSizePixel = 1
     outerFrame.BorderColor3 = Color3.fromRGB(40, 40, 40)
-    outerFrame.ClipsDescendants = true
     outerFrame.Parent = self.container
 
     local holder = Instance.new("Frame")
-    holder.Name = "Holder"
     holder.Position = UDim2.new(0, 1, 0, 1)
     holder.Size = UDim2.new(1, -2, 1, -2)
-    holder.BackgroundTransparency = 0
     holder.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
     holder.BorderSizePixel = 0
-    holder.ClipsDescendants = true
     holder.Parent = outerFrame
 
     local background = Instance.new("Frame")
-    background.Name = "Background"
     background.Size = UDim2.new(1, -4, 1, -4)
     background.Position = UDim2.new(0, 2, 0, 2)
     background.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
@@ -101,18 +99,25 @@ function NotificationLib:CreateNotification(text, duration, color)
     background.Parent = holder
 
     local textLabel = Instance.new("TextLabel")
-    textLabel.Name = "TextLabel"
-    textLabel.TextXAlignment = Enum.TextXAlignment.Center
-    textLabel.TextYAlignment = Enum.TextYAlignment.Center
-    textLabel.Position = UDim2.new(0, 0, 0, 0)
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.Size = UDim2.new(1, -10, 1, -6)
+    textLabel.Position = UDim2.new(0, 5, 0, 0)
     textLabel.Font = Enum.Font.Ubuntu
     textLabel.Text = text
-    textLabel.TextColor3 = Color3.new(1, 1, 1)
     textLabel.TextSize = 12
+    textLabel.TextColor3 = Color3.new(1,1,1)
     textLabel.BackgroundTransparency = 1
-    textLabel.TextTransparency = 0
+    textLabel.TextXAlignment = Enum.TextXAlignment.Center
+    textLabel.TextYAlignment = Enum.TextYAlignment.Center
+    textLabel.TextWrapped = true
     textLabel.Parent = background
+
+    -- STATIC BOTTOM LINE (no animation)
+    local progressBar = Instance.new("Frame")
+    progressBar.Size = UDim2.new(1, 0, 0, 1)
+    progressBar.Position = UDim2.new(0, 0, 1, -1)
+    progressBar.BackgroundColor3 = color or Color3.fromRGB(255,255,255)
+    progressBar.BorderSizePixel = 0
+    progressBar.Parent = background
 
     local hoverConn = outerFrame.MouseEnter:Connect(function()
         for _, element in pairs({outerFrame, holder, background, textLabel}) do
@@ -142,10 +147,6 @@ function NotificationLib:CreateNotification(text, duration, color)
 
     local notification = {
         outerFrame = outerFrame,
-        holder = holder,
-        background = background,
-        textLabel = textLabel,
-        remove = nil,
         connections = {hoverConn}
     }
     table.insert(self.activeNotifications, notification)
@@ -160,72 +161,30 @@ function NotificationLib:CreateNotification(text, duration, color)
             end
         end
 
-        if notification.connections then
-            for _, conn in ipairs(notification.connections) do
-                if conn then
-                    conn:Disconnect()
-                end
-            end
+        for _, conn in ipairs(notification.connections) do
+            if conn then conn:Disconnect() end
         end
 
-        local fadeOutGroup = {}
-
-        table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
+        local tween = game:GetService("TweenService"):Create(
             outerFrame,
-            TweenInfo.new(0.5, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-            {
-                Position = UDim2.new(0.5, 0, 1.2, 0),
-                BackgroundTransparency = 1
-            }
-        ))
+            TweenInfo.new(0.4),
+            {Position = UDim2.new(0.5, 0, 1.2, 0), BackgroundTransparency = 1}
+        )
+        tween:Play()
 
-        for _, element in pairs({holder, background, textLabel}) do
-            table.insert(fadeOutGroup, game:GetService("TweenService"):Create(
-                element,
-                TweenInfo.new(0.5, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-                element:IsA("TextLabel") and {TextTransparency = 1} or {BackgroundTransparency = 1}
-            ))
-        end
-
-        for _, tween in ipairs(fadeOutGroup) do
-            tween:Play()
-        end
-
-        task.delay(0.5, function()
+        task.delay(0.4, function()
             outerFrame:Destroy()
             self:UpdatePositions()
         end)
     end
 
-    notification.remove = Remove
-
     task.delay(duration or 5, Remove)
-    
-    return notification
 end
 
 function NotificationLib:Notify(text, duration, color)
     task.spawn(function()
-        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255, 255, 255))
+        self:CreateNotification(text, duration or 5, color or Color3.fromRGB(255,255,255))
     end)
-end
-
-function NotificationLib:WelcomePlayer()
-    if not self.ready then
-        task.spawn(function()
-            while not self.ready do
-                task.wait()
-            end
-            local player = game:GetService("Players").LocalPlayer
-            local name = player.DisplayName ~= player.Name and player.DisplayName or player.Name
-            self:Notify("Welcome, "..name.."!", 5, Color3.fromRGB(255, 215, 0))
-        end)
-        return
-    end
-    
-    local player = game:GetService("Players").LocalPlayer
-    local name = player.DisplayName ~= player.Name and player.DisplayName or player.Name
-    self:Notify("Welcome, "..name.."!", 5, Color3.fromRGB(255, 215, 0))
 end
 
 function NotificationLib:Destroy()
@@ -233,19 +192,15 @@ function NotificationLib:Destroy()
         currentInstance = nil
     end
     
-    for _, notification in ipairs(self.activeNotifications) do
-        if notification.remove then
-            notification.remove()
+    for _, n in ipairs(self.activeNotifications) do
+        if n.outerFrame then
+            n.outerFrame:Destroy()
         end
     end
     
     if self.container then
         self.container:Destroy()
     end
-    
-    self.activeNotifications = nil
-    self.container = nil
-    self.queuedNotifications = nil
 end
 
 return NotificationLib
