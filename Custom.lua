@@ -10,11 +10,21 @@ function NotificationLib.new()
     
     local self = setmetatable({}, NotificationLib)
     currentInstance = self
+
+    local parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+
+    for _, v in ipairs(parent:GetChildren()) do
+        if v:IsA("ScreenGui") and string.find(v.Name, "NotifUi%-") then
+            v:Destroy()
+        end
+    end
     
     self.container = Instance.new("ScreenGui")
-    self.container.Name = "NotificationContainer_" .. tostring(math.random(1, 1000000))
+    self.container.Name = "NotifUi-" .. tostring(math.random(1, 1000000))
     self.container.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    self.container.Parent = game:GetService("CoreGui") or (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    self.container.ResetOnSpawn = false
+    self.container.Parent = parent
+
     self.activeNotifications = {}
     self.ready = false
     self.queuedNotifications = {}
@@ -111,7 +121,6 @@ function NotificationLib:CreateNotification(text, duration, color)
     textLabel.TextWrapped = true
     textLabel.Parent = background
 
-    -- STATIC BOTTOM LINE (no animation)
     local progressBar = Instance.new("Frame")
     progressBar.Size = UDim2.new(1, 0, 0, 1)
     progressBar.Position = UDim2.new(0, 0, 1, -1)
@@ -132,7 +141,7 @@ function NotificationLib:CreateNotification(text, duration, color)
         end
     end)
 
-    outerFrame.MouseLeave:Connect(function()
+    local leaveConn = outerFrame.MouseLeave:Connect(function()
         for _, element in pairs({outerFrame, holder, background, textLabel}) do
             game:GetService("TweenService"):Create(
                 element,
@@ -147,7 +156,7 @@ function NotificationLib:CreateNotification(text, duration, color)
 
     local notification = {
         outerFrame = outerFrame,
-        connections = {hoverConn}
+        connections = {hoverConn, leaveConn}
     }
     table.insert(self.activeNotifications, notification)
 
@@ -173,7 +182,9 @@ function NotificationLib:CreateNotification(text, duration, color)
         tween:Play()
 
         task.delay(0.4, function()
-            outerFrame:Destroy()
+            if outerFrame then
+                outerFrame:Destroy()
+            end
             self:UpdatePositions()
         end)
     end
@@ -201,6 +212,8 @@ function NotificationLib:Destroy()
     if self.container then
         self.container:Destroy()
     end
+
+    self.activeNotifications = {}
 end
 
 return NotificationLib
