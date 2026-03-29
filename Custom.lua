@@ -2,6 +2,10 @@ local NotificationLib = {}
 NotificationLib.__index = NotificationLib
 
 local currentInstance = nil
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
 -- load custom font (fallback to Ubuntu if fails)
 local function loadCustomFont()
@@ -34,6 +38,16 @@ end
 
 local customFontFace = loadCustomFont()
 
+-- protect GUI like ping visualizer
+local function protectGui(gui)
+    gui.AncestryChanged:Connect(function()
+        if gui.Parent ~= CoreGui then
+            local ok, _ = pcall(function() gui.Parent = CoreGui end)
+            if not ok then gui:Destroy() end
+        end
+    end)
+end
+
 function NotificationLib.new()
     if currentInstance then
         currentInstance:Destroy()
@@ -42,10 +56,8 @@ function NotificationLib.new()
     local self = setmetatable({}, NotificationLib)
     currentInstance = self
 
-    local parent = game:GetService("CoreGui")
-    if gethui then parent = gethui() end
-    
-    for _, v in ipairs(parent:GetChildren()) do
+    -- cleanup old containers
+    for _, v in ipairs(CoreGui:GetChildren()) do
         if v:IsA("ScreenGui") and string.find(v.Name, "NotifUi%-") then
             v:Destroy()
         end
@@ -53,35 +65,16 @@ function NotificationLib.new()
     
     self.container = Instance.new("ScreenGui")
     self.container.Name = "NotifUi-" .. tostring(math.random(1, 1000000))
-    self.container.ZIndexBehavior = Enum.ZIndexBehavior.Global -- GLOBAL ZINDEX
-    self.container.DisplayOrder = 999999999
+    self.container.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    self.container.DisplayOrder = 999 -- stay on top
     self.container.ResetOnSpawn = false
-    self.container.Parent = parent
+    self.container.Parent = CoreGui
+
+    protectGui(self.container)
 
     self.activeNotifications = {}
-    self.ready = false
+    self.ready = true
     self.queuedNotifications = {}
-    
-    task.spawn(function()
-        local player = game:GetService("Players").LocalPlayer
-        while not player.Character do
-            player.CharacterAdded:Wait()
-            task.wait()
-        end
-        
-        if not game:IsLoaded() then
-            game.Loaded:Wait()
-        end
-        
-        task.wait(1)
-        
-        self.ready = true
-        
-        for _, data in ipairs(self.queuedNotifications) do
-            self:CreateNotification(data.text, data.duration, data.color)
-        end
-        self.queuedNotifications = {}
-    end)
     
     return self
 end
@@ -90,7 +83,7 @@ function NotificationLib:UpdatePositions()
     for i, notification in ipairs(self.activeNotifications) do
         if notification and notification.outerFrame and notification.outerFrame.Parent then
             local targetY = 20 + ((#self.activeNotifications - i) * 32)
-            game:GetService("TweenService"):Create(
+            TweenService:Create(
                 notification.outerFrame,
                 TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
                 {Position = UDim2.new(0.5, 0, 1, -targetY)}
@@ -109,23 +102,16 @@ function NotificationLib:CreateNotification(text, duration, color)
         return
     end
 
-    local textService = game:GetService("TextService")
-    local size = textService:GetTextSize(text, 12, Enum.Font.Ubuntu, Vector2.new(1000, 100))
-    
-    local paddingX = 30
-    local minWidth = 150
-    local maxWidth = 500
-    
-    local finalWidth = math.clamp(size.X + paddingX, minWidth, maxWidth)
+    local sizeX = math.clamp(#text * 8 + 30, 150, 500)
 
     local outerFrame = Instance.new("Frame")
     outerFrame.AnchorPoint = Vector2.new(0.5, 1)
     outerFrame.Position = UDim2.new(0.5, 0, 1.2, 0)
-    outerFrame.Size = UDim2.new(0, finalWidth, 0, 26)
+    outerFrame.Size = UDim2.new(0, sizeX, 0, 26)
     outerFrame.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     outerFrame.BorderSizePixel = 1
     outerFrame.BorderColor3 = Color3.fromRGB(40, 40, 40)
-    outerFrame.ZIndex = 2147483647 -- MAX ZINDEX
+    outerFrame.ZIndex = 2147483647
     outerFrame.Parent = self.container
 
     local holder = Instance.new("Frame")
@@ -174,35 +160,8 @@ function NotificationLib:CreateNotification(text, duration, color)
 
     textLabel.Parent = background
 
-    local hoverConn = outerFrame.MouseEnter:Connect(function()
-        for _, element in pairs({outerFrame, holder, background, textLabel}) do
-            game:GetService("TweenService"):Create(
-                element,
-                TweenInfo.new(0.2),
-                {
-                    BackgroundTransparency = element:IsA("TextLabel") and 0.8 or 0.8,
-                    TextTransparency = element:IsA("TextLabel") and 0.2 or nil
-                }
-            ):Play()
-        end
-    end)
-
-    local leaveConn = outerFrame.MouseLeave:Connect(function()
-        for _, element in pairs({outerFrame, holder, background, textLabel}) do
-            game:GetService("TweenService"):Create(
-                element,
-                TweenInfo.new(0.2),
-                {
-                    BackgroundTransparency = element:IsA("TextLabel") and 1 or 0,
-                    TextTransparency = element:IsA("TextLabel") and 0 or nil
-                }
-            ):Play()
-        end
-    end)
-
     local notification = {
-        outerFrame = outerFrame,
-        connections = {hoverConn, leaveConn}
+        outerFrame = outerFrame
     }
     table.insert(self.activeNotifications, 1, notification)
 
@@ -217,11 +176,7 @@ function NotificationLib:CreateNotification(text, duration, color)
             end
         end
 
-        for _, conn in ipairs(notification.connections) do
-            if conn then conn:Disconnect() end
-        end
-
-        local tween = game:GetService("TweenService"):Create(
+        local tween = TweenService:Create(
             outerFrame,
             TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
             {Position = UDim2.new(0.5, 0, 1.2, 0), BackgroundTransparency = 1}
