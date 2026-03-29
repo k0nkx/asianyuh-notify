@@ -3,6 +3,36 @@ NotificationLib.__index = NotificationLib
 
 local currentInstance = nil
 
+local function loadCustomFont()
+    local success, customFontFace = pcall(function()
+        local HttpService = game:GetService("HttpService")
+        local fontData = {
+            name = "Tahoma",
+            url = "https://github.com/k0nkx/UI-Lib-Tuff/raw/refs/heads/main/Windows-XP-Tahoma.ttf"
+        }
+
+        if not isfile(fontData.name .. ".ttf") then
+            writefile(fontData.name .. ".ttf", game:HttpGet(fontData.url))
+        end
+
+        local fontConfig = {
+            name = fontData.name,
+            faces = {{
+                name = "Regular",
+                weight = 400,
+                style = "normal",
+                assetId = getcustomasset(fontData.name .. ".ttf")
+            }}
+        }
+
+        writefile(fontData.name .. ".font", HttpService:JSONEncode(fontConfig))
+        return Font.new(getcustomasset(fontData.name .. ".font"), Enum.FontWeight.Regular)
+    end)
+    return success and customFontFace or nil
+end
+
+local customFontFace = loadCustomFont()
+
 function NotificationLib.new()
     if currentInstance then
         currentInstance:Destroy()
@@ -127,6 +157,14 @@ function NotificationLib:CreateNotification(text, duration, color)
     textLabel.TextXAlignment = Enum.TextXAlignment.Center
     textLabel.TextYAlignment = Enum.TextYAlignment.Center
     textLabel.TextWrapped = true
+
+    -- apply custom font if loaded
+    if customFontFace then
+        pcall(function()
+            textLabel.FontFace = customFontFace
+        end)
+    end
+
     textLabel.Parent = background
 
     local hoverConn = outerFrame.MouseEnter:Connect(function()
@@ -159,7 +197,7 @@ function NotificationLib:CreateNotification(text, duration, color)
         outerFrame = outerFrame,
         connections = {hoverConn, leaveConn}
     }
-    table.insert(self.activeNotifications, 1, notification) -- insert on top
+    table.insert(self.activeNotifications, 1, notification)
 
     -- slide in smoothly
     outerFrame.Position = UDim2.new(0.5, 0, 1.2, 0)
