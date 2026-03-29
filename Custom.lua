@@ -102,7 +102,7 @@ function NotificationLib:CreateNotification(text, duration, color)
         return
     end
 
-    local sizeX = math.clamp(#text * 8 + 10, 150, 500)
+    local sizeX = math.clamp((#text * 8 + 30) * 0.2, 30, 100)
 
     local outerFrame = Instance.new("Frame")
     outerFrame.AnchorPoint = Vector2.new(0.5, 1)
