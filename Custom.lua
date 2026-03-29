@@ -108,9 +108,18 @@ function NotificationLib:CreateNotification(text, duration, color)
     background.BorderSizePixel = 0
     background.Parent = holder
 
+    -- TOP LINE (fixed)
+    local progressBar = Instance.new("Frame")
+    progressBar.Size = UDim2.new(1, 0, 0, 1)
+    progressBar.Position = UDim2.new(0, 0, 0, 0)
+    progressBar.BackgroundColor3 = color or Color3.fromRGB(255,255,255)
+    progressBar.BorderSizePixel = 0
+    progressBar.Parent = background
+
     local textLabel = Instance.new("TextLabel")
+    textLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    textLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
     textLabel.Size = UDim2.new(1, -10, 1, -6)
-    textLabel.Position = UDim2.new(0, 5, 0, 0)
     textLabel.Font = Enum.Font.Ubuntu
     textLabel.Text = text
     textLabel.TextSize = 12
@@ -120,13 +129,6 @@ function NotificationLib:CreateNotification(text, duration, color)
     textLabel.TextYAlignment = Enum.TextYAlignment.Center
     textLabel.TextWrapped = true
     textLabel.Parent = background
-
-    local progressBar = Instance.new("Frame")
-    progressBar.Size = UDim2.new(1, 0, 0, 1)
-    progressBar.Position = UDim2.new(0, 0, 1, -1)
-    progressBar.BackgroundColor3 = color or Color3.fromRGB(255,255,255)
-    progressBar.BorderSizePixel = 0
-    progressBar.Parent = background
 
     local hoverConn = outerFrame.MouseEnter:Connect(function()
         for _, element in pairs({outerFrame, holder, background, textLabel}) do
