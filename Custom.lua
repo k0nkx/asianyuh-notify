@@ -4,8 +4,6 @@ NotificationLib.__index = NotificationLib
 local currentInstance = nil
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
 
 -- load custom font (fallback to Ubuntu if fails)
 local function loadCustomFont()
@@ -102,7 +100,8 @@ function NotificationLib:CreateNotification(text, duration, color)
         return
     end
 
-    local sizeX = math.clamp(#text * 6 + 17, 100, 400)
+    -- LOWER padding for text width: ~5px per char + min 120, max 400
+    local sizeX = math.clamp(#text * 5 + 20, 120, 400)
 
     local outerFrame = Instance.new("Frame")
     outerFrame.AnchorPoint = Vector2.new(0.5, 1)
@@ -160,12 +159,9 @@ function NotificationLib:CreateNotification(text, duration, color)
 
     textLabel.Parent = background
 
-    local notification = {
-        outerFrame = outerFrame
-    }
+    local notification = { outerFrame = outerFrame }
     table.insert(self.activeNotifications, 1, notification)
 
-    outerFrame.Position = UDim2.new(0.5, 0, 1.2, 0)
     self:UpdatePositions()
 
     local function Remove()
@@ -184,9 +180,7 @@ function NotificationLib:CreateNotification(text, duration, color)
         tween:Play()
 
         task.delay(0.35, function()
-            if outerFrame then
-                outerFrame:Destroy()
-            end
+            if outerFrame then outerFrame:Destroy() end
             self:UpdatePositions()
         end)
     end
@@ -201,19 +195,13 @@ function NotificationLib:Notify(text, duration, color)
 end
 
 function NotificationLib:Destroy()
-    if currentInstance == self then
-        currentInstance = nil
-    end
+    if currentInstance == self then currentInstance = nil end
     
     for _, n in ipairs(self.activeNotifications) do
-        if n.outerFrame then
-            n.outerFrame:Destroy()
-        end
+        if n.outerFrame then n.outerFrame:Destroy() end
     end
     
-    if self.container then
-        self.container:Destroy()
-    end
+    if self.container then self.container:Destroy() end
 
     self.activeNotifications = {}
 end
