@@ -1,5 +1,5 @@
 -- Load the library from your GitHub
-local NotifyLib = loadstring(game:HttpGet("https://github.com/k0nkx/asianyuh-notify/raw/refs/heads/main/ignore/x2"))()
+local NotifyLib = loadstring(game:HttpGet("https://github.com/k0nkx/asianyuh-notify/raw/refs/heads/main/Linoria%20modded.lua"))()
 
 -- 1. Simple text notification
 NotifyLib:Notify("Simple notification", 3)
