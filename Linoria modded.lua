@@ -1,442 +1,206 @@
+local TweenService = game:GetService("TweenService")
+local TextService = game:GetService("TextService")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+
+local PlayerGui
+if RunService:IsStudio() or not pcall(function() local _ = CoreGui.Name end) then
+    PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+else
+    PlayerGui = CoreGui
+end
+
+local NotificationUI = Instance.new("ScreenGui")
+NotificationUI.Name = "StandaloneNotifications"
+NotificationUI.ResetOnSpawn = false
+NotificationUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+NotificationUI.Parent = PlayerGui
+
+local BottomNotificationArea = Instance.new("Frame")
+BottomNotificationArea.AnchorPoint = Vector2.new(0.5, 1)
+BottomNotificationArea.BackgroundTransparency = 1
+BottomNotificationArea.Position = UDim2.new(0.5, 0, 1, -40)
+BottomNotificationArea.Size = UDim2.new(0, 300, 0, 200)
+BottomNotificationArea.ZIndex = 11000
+BottomNotificationArea.Parent = NotificationUI
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 4)
+UIListLayout.FillDirection = Enum.FillDirection.Vertical
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Parent = BottomNotificationArea
+
 local NotificationLibrary = {}
-local ActiveInstance = nil
+NotificationLibrary.MainColor = Color3.fromRGB(35, 35, 35)
+NotificationLibrary.OutlineColor = Color3.fromRGB(20, 20, 20)
+NotificationLibrary.AccentColor = Color3.fromRGB(150, 180, 255)
+NotificationLibrary.FontColor = Color3.fromRGB(255, 255, 255)
+NotificationLibrary.Font = Enum.Font.Code
+NotificationLibrary.FontSize = 14
+NotificationLibrary.DPIScale = 1
 
-local function Initialize()
-    if ActiveInstance and ActiveInstance._ScreenGui and ActiveInstance._ScreenGui.Parent then
-        return ActiveInstance
+local function GetDarkerColor(col)
+    local h, s, v = Color3.toHSV(col)
+    return Color3.fromHSV(h, s, math.max(v - 0.1, 0))
+end
+
+local function GetTextBounds(text, font, size)
+    local bounds = TextService:GetTextSize(text, size, font, Vector2.new(math.huge, math.huge))
+    return bounds.X, bounds.Y
+end
+
+function NotificationLibrary:Notify(Info, ...)
+    local Data = {}
+    if type(Info) == "table" then
+        Data.Title = Info.Title and tostring(Info.Title) or ""
+        Data.Description = tostring(Info.Description)
+        Data.Time = Info.Time or 5
+        Data.Persist = Info.Persist
+        Data.LineColor = Info.LineColor
+    else
+        Data.Title = ""
+        Data.Description = tostring(Info)
+        Data.Time = select(1, ...) or 5
     end
-    
-    if ActiveInstance then
-        ActiveInstance:Destroy()
-        ActiveInstance = nil
-    end
+    Data.Destroyed = false
 
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "NotificationGui"
-    ScreenGui.Parent = game:GetService("CoreGui")
-
-    local TweenService = game:GetService("TweenService")
-
-    local Library = {
-        _ScreenGui = ScreenGui,
-        _TweenService = TweenService,
-        MainColor = Color3.fromRGB(30, 30, 35),
-        OutlineColor = Color3.fromRGB(50, 50, 55),
-        AccentColor = Color3.fromRGB(0, 120, 215),
-        FontColor = Color3.fromRGB(255, 255, 255),
-        Font = Enum.Font.Gotham,
-        DPIScale = 1,
-        Registry = {},
-        _activeNotifications = {}
-    }
-
-    function Library:GetDarkerColor(color)
-        return Color3.new(
-            math.max(color.R - 0.1, 0),
-            math.max(color.G - 0.1, 0),
-            math.max(color.B - 0.1, 0)
-        )
-    end
-
-    function Library:GetTextBounds(text, font, size)
-        local textLabel = Instance.new("TextLabel")
-        textLabel.Font = font
-        textLabel.TextSize = size
-        textLabel.Text = text
-        textLabel.TextWrapped = true
-        textLabel.TextXAlignment = Enum.TextXAlignment.Left
-        textLabel.TextYAlignment = Enum.TextYAlignment.Top
-        textLabel.Size = UDim2.new(0, 300, 0, 100)
-        textLabel.Parent = self._ScreenGui
-        
-        local bounds = textLabel.TextBounds
-        local xSize = bounds.X + 4
-        local ySize = bounds.Y + 4
-        
-        textLabel:Destroy()
-        
-        return xSize, ySize
-    end
-
-    function Library:Create(className, properties)
-        local instance = Instance.new(className)
-        for prop, value in pairs(properties) do
-            instance[prop] = value
-        end
-        return instance
-    end
-
-    function Library:CreateLabel(properties)
-        local label = self:Create("TextLabel", properties)
-        label.BackgroundTransparency = 1
-        label.TextColor3 = self.FontColor
-        label.Font = self.Font
-        label.TextWrapped = true
-        label.TextScaled = false
-        return label
-    end
-
-    function Library:AddToRegistry(instance, colorProperties, updateExisting)
-        if updateExisting then
-            for prop, colorKey in pairs(colorProperties) do
-                if colorKey == "MainColor" then
-                    instance[prop] = self.MainColor
-                elseif colorKey == "OutlineColor" then
-                    instance[prop] = self.OutlineColor
-                elseif colorKey == "AccentColor" then
-                    instance[prop] = self.AccentColor
-                elseif colorKey == "FontColor" then
-                    instance[prop] = self.FontColor
-                end
-            end
-        end
-        
-        table.insert(self.Registry, {
-            Instance = instance,
-            Properties = colorProperties
-        })
-    end
-
-    function Library:GetCustomIcon(iconName)
-        local icons = {
-            info = { Url = "rbxassetid://1234567890" },
-            warning = { Url = "rbxassetid://1234567890" },
-            error = { Url = "rbxassetid://1234567890" },
-            success = { Url = "rbxassetid://1234567890" }
-        }
-        return icons[iconName] or (type(iconName) == "string" and { Url = iconName } or nil)
-    end
-
-    Library.BottomNotificationArea = Library:Create("Frame", {
-        AnchorPoint = Vector2.new(0.5, 1),
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0.5, 0, 1, -40),
-        Size = UDim2.new(0, 300, 0, 200),
-        ZIndex = 11000,
-        Parent = Library._ScreenGui,
-    })
-
-    Library:Create("UIListLayout", {
-        Padding = UDim.new(0, 4),
-        FillDirection = Enum.FillDirection.Vertical,
-        HorizontalAlignment = Enum.HorizontalAlignment.Center,
-        VerticalAlignment = Enum.VerticalAlignment.Bottom,
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Parent = Library.BottomNotificationArea,
-    })
-
-    function Library:Notify(...)
-        local Data = {}
-        local Info = select(1, ...)
-
-        if typeof(Info) == "table" then
-            Data.Title = Info.Title and tostring(Info.Title) or ""
-            Data.Description = tostring(Info.Description)
-            Data.Time = Info.Time or 5
-            Data.Steps = Info.Steps
-            Data.Persist = Info.Persist
-            Data.Icon = Info.Icon
-            Data.IconColor = Info.IconColor
-        else
-            Data.Title = ""
-            Data.Description = tostring(Info)
-            Data.Time = select(2, ...) or 5
-        end
-        Data.Destroyed = false
-
-        local DeletedInstance = false
-        local DeleteConnection = nil
-        if typeof(Data.Time) == "Instance" then
-            DeleteConnection = Data.Time.Destroying:Connect(function()
-                DeletedInstance = true
-                DeleteConnection:Disconnect()
-                DeleteConnection = nil
-            end)
-        end
-
-        local XSize, YSize = Library:GetTextBounds(Data.Description, Library.Font, 14)
-        YSize = YSize + 7
-
-        local NotifyOuter = Library:Create("Frame", {
-            BorderColor3 = Color3.new(0, 0, 0),
-            Size = UDim2.new(0, 0, 0, YSize),
-            ClipsDescendants = true,
-            ZIndex = 11000,
-            Visible = false,
-            Name = "Notif",
-            Parent = Library.BottomNotificationArea,
-        })
-
-        local NotifyInner = Library:Create("Frame", {
-            BackgroundColor3 = Library.MainColor,
-            BorderColor3 = Library.OutlineColor,
-            BorderMode = Enum.BorderMode.Inset,
-            Size = UDim2.new(1, 0, 1, 0),
-            ZIndex = 11001,
-            Parent = NotifyOuter,
-        })
-
-        Library:AddToRegistry(NotifyInner, {
-            BackgroundColor3 = "MainColor",
-            BorderColor3 = "OutlineColor",
-        }, true)
-
-        local InnerFrame = Library:Create("Frame", {
-            BackgroundColor3 = Color3.new(1, 1, 1),
-            BorderSizePixel = 0,
-            Position = UDim2.new(0, 1, 0, 1),
-            Size = UDim2.new(1, -2, 1, -2),
-            ZIndex = 11002,
-            Parent = NotifyInner,
-        })
-
-        local Gradient = Library:Create("UIGradient", {
-            Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
-                ColorSequenceKeypoint.new(1, Library.MainColor),
-            }),
-            Rotation = -90,
-            Parent = InnerFrame,
-        })
-
-        Library:AddToRegistry(Gradient, {
-            Color = function()
-                return ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
-                    ColorSequenceKeypoint.new(1, Library.MainColor),
-                })
-            end
-        })
-
-        local ExtraWidth = 0
-        local TextPosition = UDim2.new(0.5, 0, 0, 0)
-        local TextSizeOffsetX = -4
-        local TextSizeOffsetY = 0
-
-        local IconLabel
-        if Data.Icon then
-            local ParsedIcon = Library:GetCustomIcon(Data.Icon)
-            if ParsedIcon then
-                ExtraWidth = ExtraWidth + 20
-                TextSizeOffsetX = TextSizeOffsetX - 20
-                TextSizeOffsetY = TextSizeOffsetY - 2
-
-                IconLabel = Library:Create("ImageLabel", {
-                    BackgroundTransparency = 1,
-                    AnchorPoint = Vector2.new(0, 0.5),
-                    Position = UDim2.new(0, 4, 0.5, 0),
-                    Size = UDim2.fromOffset(14, 14),
-                    Image = ParsedIcon.Url,
-                    ImageColor3 = Data.IconColor or Library.FontColor,
-                    ImageRectOffset = ParsedIcon.ImageRectOffset,
-                    ImageRectSize = ParsedIcon.ImageRectSize,
-                    ZIndex = 11004,
-                    Parent = InnerFrame,
-                })
-                
-                if not Data.IconColor then
-                    Library:AddToRegistry(IconLabel, {
-                        ImageColor3 = "FontColor",
-                    }, true)
-                end
-                
-                TextPosition = UDim2.new(0.5, 8, 0, 0)
-            end
-        end
-
-        local NotifyLabel = Library:CreateLabel({
-            AnchorPoint = Vector2.new(0.5, 0),
-            Position = TextPosition,
-            Size = UDim2.new(1, TextSizeOffsetX, 1, TextSizeOffsetY),
-            Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. tostring(Data.Description),
-            TextXAlignment = Enum.TextXAlignment.Center,
-            TextSize = 14,
-            ZIndex = 11003,
-            RichText = true,
-            Parent = InnerFrame,
-        })
-
-        local SideColor = Library:Create("Frame", {
-            AnchorPoint = Vector2.new(0, 1),
-            Position = UDim2.new(0, -1, 1, 1),
-            BackgroundColor3 = Library.AccentColor,
-            BorderSizePixel = 0,
-            Size = UDim2.new(1, 2, 0, 2),
-            ZIndex = 11004,
-            Parent = NotifyOuter,
-        })
-
-        Library:AddToRegistry(SideColor, {
-            BackgroundColor3 = "AccentColor",
-        }, true)
-
-        function Data:Resize()
-            XSize, YSize = Library:GetTextBounds(NotifyLabel.Text, Library.Font, 14)
-            YSize = YSize + 7
-            
-            pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, XSize * Library.DPIScale + 8 + 4 + ExtraWidth, 0, YSize), "Out", "Quad", 0.4, true)
-        end
-
-        function Data:ChangeTitle(NewText)
-            NewText = NewText == nil and "" or tostring(NewText)
-            Data.Title = NewText
-            NotifyLabel.Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. tostring(Data.Description)
-            Data:Resize()
-        end
-
-        function Data:ChangeDescription(NewText)
-            if NewText == nil then return end
-            NewText = tostring(NewText)
-            Data.Description = NewText
-            NotifyLabel.Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. tostring(Data.Description)
-            Data:Resize()
-        end
-
-        function Data:ChangeStep(...)
-        end
-
-        function Data:Destroy()
-            if Data.Destroyed then return end
-            Data.Destroyed = true
-
-            if typeof(Data.Time) == "Instance" then
-                pcall(Data.Time.Destroy, Data.Time)
-            end
-            
+    local DeletedInstance = false
+    local DeleteConnection = nil
+    if typeof(Data.Time) == "Instance" then
+        DeleteConnection = Data.Time.Destroying:Connect(function()
+            DeletedInstance = true
             if DeleteConnection then
                 DeleteConnection:Disconnect()
-            end
-
-            for i, notification in ipairs(Library._activeNotifications) do
-                if notification == Data then
-                    table.remove(Library._activeNotifications, i)
-                    break
-                end
-            end
-
-            pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, 0, 0, YSize), "Out", "Quad", 0.4, true)
-            task.wait(0.4)
-            NotifyOuter:Destroy()
-        end
-
-        Data:Resize()
-
-        NotifyOuter.Visible = true
-        NotifyOuter.Size = UDim2.new(0, 0, 0, YSize)
-        
-        local TargetX = XSize * Library.DPIScale + 8 + 4 + ExtraWidth
-        
-        local LineTween = Library._TweenService:Create(NotifyOuter, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, TargetX, 0, YSize)
-        })
-        
-        LineTween:Play()
-
-        table.insert(Library._activeNotifications, Data)
-
-        task.delay(0.4, function()
-            if Data.Persist then
-                return
-            elseif typeof(Data.Time) == "Instance" then
-                repeat
-                    task.wait()
-                until DeletedInstance or Data.Destroyed
-            else
-                task.wait(Data.Time or 5)
-            end
-
-            if not Data.Destroyed then
-                Data:Destroy()
+                DeleteConnection = nil
             end
         end)
-
-        return Data
     end
 
-    function Library:SetColor(colorType, color)
-        if colorType == "Main" then
-            self.MainColor = color
-        elseif colorType == "Outline" then
-            self.OutlineColor = color
-        elseif colorType == "Accent" then
-            self.AccentColor = color
-        elseif colorType == "Font" then
-            self.FontColor = color
+    local LabelText = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. Data.Description
+    local XSize, YSize = GetTextBounds(LabelText, self.Font, self.FontSize)
+    YSize = YSize + 7
+
+    local NotifyOuter = Instance.new("Frame")
+    NotifyOuter.BorderColor3 = Color3.new(0, 0, 0)
+    NotifyOuter.Size = UDim2.new(0, 0, 0, YSize)
+    NotifyOuter.ClipsDescendants = true
+    NotifyOuter.ZIndex = 11000
+    NotifyOuter.Visible = false
+    NotifyOuter.Name = "Notif"
+    NotifyOuter.Parent = BottomNotificationArea
+
+    local NotifyInner = Instance.new("Frame")
+    NotifyInner.BackgroundColor3 = self.MainColor
+    NotifyInner.BorderColor3 = self.OutlineColor
+    NotifyInner.BorderMode = Enum.BorderMode.Inset
+    NotifyInner.Size = UDim2.new(1, 0, 1, 0)
+    NotifyInner.ZIndex = 11001
+    NotifyInner.Parent = NotifyOuter
+
+    local InnerFrame = Instance.new("Frame")
+    InnerFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+    InnerFrame.BorderSizePixel = 0
+    InnerFrame.Position = UDim2.new(0, 1, 0, 1)
+    InnerFrame.Size = UDim2.new(1, -2, 1, -2)
+    InnerFrame.ZIndex = 11002
+    InnerFrame.Parent = NotifyInner
+
+    local Gradient = Instance.new("UIGradient")
+    Gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, GetDarkerColor(self.MainColor)),
+        ColorSequenceKeypoint.new(1, self.MainColor)
+    })
+    Gradient.Rotation = -90
+    Gradient.Parent = InnerFrame
+
+    local NotifyLabel = Instance.new("TextLabel")
+    NotifyLabel.BackgroundTransparency = 1
+    NotifyLabel.AnchorPoint = Vector2.new(0.5, 0)
+    NotifyLabel.Position = UDim2.new(0.5, 0, 0, 0)
+    NotifyLabel.Size = UDim2.new(1, -4, 1, 0)
+    NotifyLabel.Text = LabelText
+    NotifyLabel.TextXAlignment = Enum.TextXAlignment.Center
+    NotifyLabel.Font = self.Font
+    NotifyLabel.TextColor3 = self.FontColor
+    NotifyLabel.TextSize = self.FontSize
+    NotifyLabel.ZIndex = 11003
+    NotifyLabel.RichText = true
+    NotifyLabel.Parent = InnerFrame
+
+    local SideColor = Instance.new("Frame")
+    SideColor.AnchorPoint = Vector2.new(0, 1)
+    SideColor.Position = UDim2.new(0, -1, 1, 1)
+    SideColor.BackgroundColor3 = Data.LineColor or self.AccentColor
+    SideColor.BorderSizePixel = 0
+    SideColor.Size = UDim2.new(1, 2, 0, 2)
+    SideColor.ZIndex = 11004
+    SideColor.Parent = NotifyOuter
+
+    function Data:Resize()
+        LabelText = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. tostring(Data.Description)
+        XSize, YSize = GetTextBounds(LabelText, NotificationLibrary.Font, NotificationLibrary.FontSize)
+        YSize = YSize + 7
+        local targetX = XSize * NotificationLibrary.DPIScale + 12
+        pcall(function()
+            NotifyOuter:TweenSize(UDim2.new(0, targetX, 0, YSize), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.4, true)
+        end)
+    end
+
+    function Data:ChangeTitle(NewText)
+        Data.Title = NewText == nil and "" or tostring(NewText)
+        NotifyLabel.Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. tostring(Data.Description)
+        Data:Resize()
+    end
+
+    function Data:ChangeDescription(NewText)
+        if NewText == nil then return end
+        Data.Description = tostring(NewText)
+        NotifyLabel.Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. tostring(Data.Description)
+        Data:Resize()
+    end
+
+    function Data:Destroy()
+        Data.Destroyed = true
+        if typeof(Data.Time) == "Instance" then
+            pcall(function() Data.Time:Destroy() end)
         end
-        
-        for _, item in ipairs(self.Registry) do
-            for prop, colorKey in pairs(item.Properties) do
-                if colorKey == "MainColor" then
-                    item.Instance[prop] = self.MainColor
-                elseif colorKey == "OutlineColor" then
-                    item.Instance[prop] = self.OutlineColor
-                elseif colorKey == "AccentColor" then
-                    item.Instance[prop] = self.AccentColor
-                elseif colorKey == "FontColor" then
-                    item.Instance[prop] = self.FontColor
-                elseif type(colorKey) == "function" then
-                    item.Instance[prop] = colorKey()
-                end
-            end
+        if DeleteConnection then
+            DeleteConnection:Disconnect()
+            DeleteConnection = nil
         end
+        pcall(function()
+            NotifyOuter:TweenSize(UDim2.new(0, 0, 0, YSize), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.4, true)
+        end)
+        task.wait(0.4)
+        NotifyOuter:Destroy()
     end
 
-    function Library:ClearAll()
-        for _, notification in ipairs(self._activeNotifications) do
-            pcall(function()
-                notification:Destroy()
-            end)
+    Data:Resize()
+    NotifyOuter.Visible = true
+    NotifyOuter.Size = UDim2.new(0, 0, 0, YSize)
+    
+    local TargetX = XSize * self.DPIScale + 12
+    local LineTween = TweenService:Create(NotifyOuter, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, TargetX, 0, YSize)
+    })
+    LineTween:Play()
+
+    task.delay(0.4, function()
+        if Data.Persist then
+            return
+        elseif typeof(Data.Time) == "Instance" then
+            repeat task.wait() until DeletedInstance or Data.Destroyed
+        else
+            task.wait(Data.Time or 5)
         end
-        self._activeNotifications = {}
-    end
-
-    function Library:Destroy()
-        self:ClearAll()
-        if self._ScreenGui then
-            self._ScreenGui:Destroy()
+        if not Data.Destroyed then
+            Data:Destroy()
         end
-        self.Registry = {}
-        self._activeNotifications = {}
-    end
+    end)
 
-    ActiveInstance = Library
-    return Library
+    return Data
 end
-
-function NotificationLibrary.new()
-    if ActiveInstance and ActiveInstance._ScreenGui and ActiveInstance._ScreenGui.Parent then
-        ActiveInstance:ClearAll()
-        return ActiveInstance
-    end
-    return Initialize()
-end
-
-function NotificationLibrary:Notify(...)
-    local instance = self.new()
-    return instance:Notify(...)
-end
-
-function NotificationLibrary:SetColor(colorType, color)
-    local instance = self.new()
-    instance:SetColor(colorType, color)
-end
-
-function NotificationLibrary:ClearAll()
-    local instance = self.new()
-    instance:ClearAll()
-end
-
-function NotificationLibrary:Destroy()
-    if ActiveInstance then
-        ActiveInstance:Destroy()
-        ActiveInstance = nil
-    end
-end
-
-setmetatable(NotificationLibrary, {
-    __call = function(_, ...)
-        return NotificationLibrary:Notify(...)
-    end
-})
 
 return NotificationLibrary
