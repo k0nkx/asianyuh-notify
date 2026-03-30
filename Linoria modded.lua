@@ -1,11 +1,14 @@
 local NotificationLibrary = {}
-local IsInitialized = false
+local ActiveInstance = nil
 
 local function Initialize()
-    if IsInitialized then
-        if _G.NotificationLibrary and _G.NotificationLibrary._ScreenGui then
-            return _G.NotificationLibrary
-        end
+    if ActiveInstance and ActiveInstance._ScreenGui and ActiveInstance._ScreenGui.Parent then
+        return ActiveInstance
+    end
+    
+    if ActiveInstance then
+        ActiveInstance:Destroy()
+        ActiveInstance = nil
     end
 
     local ScreenGui = Instance.new("ScreenGui")
@@ -23,7 +26,8 @@ local function Initialize()
         FontColor = Color3.fromRGB(255, 255, 255),
         Font = Enum.Font.Gotham,
         DPIScale = 1,
-        Registry = {}
+        Registry = {},
+        _activeNotifications = {}
     }
 
     function Library:GetDarkerColor(color)
@@ -294,6 +298,7 @@ local function Initialize()
         end
 
         function Data:Destroy()
+            if Data.Destroyed then return end
             Data.Destroyed = true
 
             if typeof(Data.Time) == "Instance" then
@@ -302,6 +307,13 @@ local function Initialize()
             
             if DeleteConnection then
                 DeleteConnection:Disconnect()
+            end
+
+            for i, notification in ipairs(Library._activeNotifications) do
+                if notification == Data then
+                    table.remove(Library._activeNotifications, i)
+                    break
+                end
             end
 
             pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, 0, 0, YSize), "Out", "Quad", 0.4, true)
@@ -331,6 +343,8 @@ local function Initialize()
         })
         
         LineTween:Play()
+
+        table.insert(Library._activeNotifications, Data)
 
         task.delay(0.4, function()
             if Data.Persist then
@@ -379,21 +393,32 @@ local function Initialize()
         end
     end
 
+    function Library:ClearAll()
+        for _, notification in ipairs(self._activeNotifications) do
+            pcall(function()
+                notification:Destroy()
+            end)
+        end
+        self._activeNotifications = {}
+    end
+
     function Library:Destroy()
+        self:ClearAll()
         if self._ScreenGui then
             self._ScreenGui:Destroy()
         end
-        IsInitialized = false
+        self.Registry = {}
+        self._activeNotifications = {}
     end
 
-    IsInitialized = true
-    _G.NotificationLibrary = Library
+    ActiveInstance = Library
     return Library
 end
 
 function NotificationLibrary.new()
-    if _G.NotificationLibrary and _G.NotificationLibrary._ScreenGui and _G.NotificationLibrary._ScreenGui.Parent then
-        return _G.NotificationLibrary
+    if ActiveInstance and ActiveInstance._ScreenGui and ActiveInstance._ScreenGui.Parent then
+        ActiveInstance:ClearAll()
+        return ActiveInstance
     end
     return Initialize()
 end
@@ -408,12 +433,16 @@ function NotificationLibrary:SetColor(colorType, color)
     instance:SetColor(colorType, color)
 end
 
+function NotificationLibrary:ClearAll()
+    local instance = self.new()
+    instance:ClearAll()
+end
+
 function NotificationLibrary:Destroy()
-    if _G.NotificationLibrary then
-        _G.NotificationLibrary:Destroy()
-        _G.NotificationLibrary = nil
+    if ActiveInstance then
+        ActiveInstance:Destroy()
+        ActiveInstance = nil
     end
-    IsInitialized = false
 end
 
 setmetatable(NotificationLibrary, {
