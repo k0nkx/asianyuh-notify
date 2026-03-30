@@ -92,22 +92,22 @@ function Library:GetCustomIcon(iconName)
     return icons[iconName] or (type(iconName) == "string" and { Url = iconName } or nil)
 end
 
-Library.BottomNotificationArea = Library:Create("Frame", {
+local BottomArea = Library:Create("Frame", {
     AnchorPoint = Vector2.new(0.5, 1),
     BackgroundTransparency = 1,
-    Position = UDim2.new(0.5, 0, 1, -40),
-    Size = UDim2.new(0, 300, 0, 200),
+    Position = UDim2.new(0.5, 0, 1, -50),
+    Size = UDim2.new(0, 400, 0, 200),
     ZIndex = 11000,
     Parent = ScreenGui,
 })
 
 Library:Create("UIListLayout", {
-    Padding = UDim.new(0, 4),
+    Padding = UDim.new(0, 8),
     FillDirection = Enum.FillDirection.Vertical,
     HorizontalAlignment = Enum.HorizontalAlignment.Center,
     VerticalAlignment = Enum.VerticalAlignment.Bottom,
     SortOrder = Enum.SortOrder.LayoutOrder,
-    Parent = Library.BottomNotificationArea,
+    Parent = BottomArea,
 })
 
 function Library:Notify(...)
@@ -119,7 +119,6 @@ function Library:Notify(...)
         Data.Description = tostring(Info.Description)
         Data.Time = Info.Time or 5
         Data.SoundId = Info.SoundId
-        Data.Steps = Info.Steps
         Data.Persist = Info.Persist
         Data.Icon = Info.Icon
         Data.IconColor = Info.IconColor
@@ -142,16 +141,15 @@ function Library:Notify(...)
     end
 
     local XSize, YSize = Library:GetTextBounds(Data.Description, Library.Font, 14)
-    YSize = YSize + 7
+    YSize = YSize + 12
 
     local NotifyOuter = Library:Create("Frame", {
-        BorderColor3 = Color3.new(0, 0, 0),
+        BackgroundTransparency = 1,
         Size = UDim2.new(0, 0, 0, YSize),
         ClipsDescendants = true,
         ZIndex = 11000,
         Visible = false,
-        Name = "Notif",
-        Parent = Library.BottomNotificationArea,
+        Parent = BottomArea,
     })
 
     local NotifyInner = Library:Create("Frame", {
@@ -196,32 +194,28 @@ function Library:Notify(...)
     })
 
     local ExtraWidth = 0
-    local TextSizeOffsetX = -4
-    local TextSizeOffsetY = 0
+    local TextOffset = 0
 
     if Data.Icon then
         local ParsedIcon = Library:GetCustomIcon(Data.Icon)
         if ParsedIcon then
-            ExtraWidth = ExtraWidth + 20
-            TextSizeOffsetX = TextSizeOffsetX - 20
-            TextSizeOffsetY = TextSizeOffsetY - 2
-
+            ExtraWidth = 24
+            TextOffset = 28
+            
             local IconLabel = Library:Create("ImageLabel", {
                 BackgroundTransparency = 1,
                 AnchorPoint = Vector2.new(0, 0.5),
-                Position = UDim2.new(0, 4, 0.5, 0),
-                Size = UDim2.fromOffset(14, 14),
+                Position = UDim2.new(0, 8, 0.5, 0),
+                Size = UDim2.fromOffset(16, 16),
                 Image = ParsedIcon.Url,
-                ImageColor3 = Data.IconColor or Library.FontColor,
-                ImageRectOffset = ParsedIcon.ImageRectOffset,
-                ImageRectSize = ParsedIcon.ImageRectSize,
+                ImageColor3 = Data.IconColor or Library.AccentColor,
                 ZIndex = 11004,
                 Parent = InnerFrame,
             })
             
             if not Data.IconColor then
                 Library:AddToRegistry(IconLabel, {
-                    ImageColor3 = "FontColor",
+                    ImageColor3 = "AccentColor",
                 }, true)
             end
         end
@@ -229,9 +223,9 @@ function Library:Notify(...)
 
     local NotifyLabel = Library:CreateLabel({
         AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, 0),
-        Size = UDim2.new(1, TextSizeOffsetX, 1, TextSizeOffsetY),
-        Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. tostring(Data.Description),
+        Position = UDim2.new(0.5, 0, 0, 8),
+        Size = UDim2.new(1, -(TextOffset + 16), 1, -16),
+        Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. Data.Description,
         TextXAlignment = Enum.TextXAlignment.Center,
         TextSize = 14,
         ZIndex = 11003,
@@ -239,46 +233,42 @@ function Library:Notify(...)
         Parent = InnerFrame,
     })
 
-    local SideColor = Library:Create("Frame", {
+    local AccentBar = Library:Create("Frame", {
         AnchorPoint = Vector2.new(0, 1),
         Position = UDim2.new(0, -1, 1, 1),
         BackgroundColor3 = Library.AccentColor,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, 2, 0, 2),
+        Size = UDim2.new(1, 2, 0, 3),
         ZIndex = 11004,
         Parent = NotifyOuter,
     })
 
-    Library:AddToRegistry(SideColor, {
+    Library:AddToRegistry(AccentBar, {
         BackgroundColor3 = "AccentColor",
     }, true)
 
     function Data:Resize()
-        XSize, YSize = Library:GetTextBounds(NotifyLabel.Text, Library.Font, 14)
-        YSize = YSize + 7
+        local NewXSize, NewYSize = Library:GetTextBounds(NotifyLabel.Text, Library.Font, 14)
+        NewYSize = NewYSize + 12
+        XSize, YSize = NewXSize, NewYSize
         
-        pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, XSize * Library.DPIScale + 8 + 4 + ExtraWidth, 0, YSize), "Out", "Quad", 0.4, true)
+        pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, NewXSize + 24 + ExtraWidth, 0, NewYSize), "Out", "Quad", 0.3, true)
     end
 
     function Data:ChangeTitle(NewText)
-        NewText = NewText == nil and "" or tostring(NewText)
-        Data.Title = NewText
-        NotifyLabel.Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. tostring(Data.Description)
+        Data.Title = NewText and tostring(NewText) or ""
+        NotifyLabel.Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. Data.Description
         Data:Resize()
     end
 
     function Data:ChangeDescription(NewText)
-        if NewText == nil then return end
-        NewText = tostring(NewText)
-        Data.Description = NewText
-        NotifyLabel.Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. tostring(Data.Description)
+        Data.Description = tostring(NewText)
+        NotifyLabel.Text = (Data.Title == "" and "" or "[" .. Data.Title .. "] ") .. Data.Description
         Data:Resize()
     end
 
-    function Data:ChangeStep(...)
-    end
-
     function Data:Destroy()
+        if Data.Destroyed then return end
         Data.Destroyed = true
 
         if typeof(Data.Time) == "Instance" then
@@ -289,8 +279,8 @@ function Library:Notify(...)
             DeleteConnection:Disconnect()
         end
 
-        pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, 0, 0, YSize), "Out", "Quad", 0.4, true)
-        task.wait(0.4)
+        pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, 0, 0, YSize), "Out", "Quad", 0.3, true)
+        task.wait(0.3)
         NotifyOuter:Destroy()
     end
 
@@ -309,13 +299,14 @@ function Library:Notify(...)
     NotifyOuter.Visible = true
     NotifyOuter.Size = UDim2.new(0, 0, 0, YSize)
     
-    local TargetX = XSize * Library.DPIScale + 8 + 4 + ExtraWidth
+    local TargetX = XSize + 24 + ExtraWidth
+    local TargetY = YSize
     
-    local LineTween = TweenService:Create(NotifyOuter, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, TargetX, 0, YSize)
+    local ExpandTween = TweenService:Create(NotifyOuter, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, TargetX, 0, TargetY)
     })
     
-    LineTween:Play()
+    ExpandTween:Play()
 
     task.delay(0.4, function()
         if Data.Persist then
