@@ -10,6 +10,10 @@ else
     PlayerGui = CoreGui
 end
 
+if PlayerGui:FindFirstChild("StandaloneNotifications") then
+    PlayerGui.StandaloneNotifications:Destroy()
+end
+
 local NotificationUI = Instance.new("ScreenGui")
 NotificationUI.Name = "StandaloneNotifications"
 NotificationUI.ResetOnSpawn = false
