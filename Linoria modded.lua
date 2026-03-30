@@ -133,7 +133,6 @@ local function Initialize()
             Data.Title = Info.Title and tostring(Info.Title) or ""
             Data.Description = tostring(Info.Description)
             Data.Time = Info.Time or 5
-            Data.SoundId = Info.SoundId
             Data.Steps = Info.Steps
             Data.Persist = Info.Persist
             Data.Icon = Info.Icon
@@ -142,7 +141,6 @@ local function Initialize()
             Data.Title = ""
             Data.Description = tostring(Info)
             Data.Time = select(2, ...) or 5
-            Data.SoundId = select(3, ...)
         end
         Data.Destroyed = false
 
@@ -322,16 +320,6 @@ local function Initialize()
         end
 
         Data:Resize()
-
-        if Data.SoundId then
-            local sound = Library:Create("Sound", {
-                SoundId = "rbxassetid://" .. tostring(Data.SoundId):gsub("rbxassetid://", ""),
-                Volume = 3,
-                PlayOnRemove = true,
-                Parent = game:GetService("SoundService"),
-            })
-            sound:Destroy()
-        end
 
         NotifyOuter.Visible = true
         NotifyOuter.Size = UDim2.new(0, 0, 0, YSize)
