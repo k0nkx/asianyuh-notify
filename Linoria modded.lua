@@ -199,7 +199,6 @@ function Library:Notify(...)
     local TextSizeOffsetX = -4
     local TextSizeOffsetY = 0
 
-    local IconLabel
     if Data.Icon then
         local ParsedIcon = Library:GetCustomIcon(Data.Icon)
         if ParsedIcon then
@@ -207,7 +206,7 @@ function Library:Notify(...)
             TextSizeOffsetX = TextSizeOffsetX - 20
             TextSizeOffsetY = TextSizeOffsetY - 2
 
-            IconLabel = Library:Create("ImageLabel", {
+            local IconLabel = Library:Create("ImageLabel", {
                 BackgroundTransparency = 1,
                 AnchorPoint = Vector2.new(0, 0.5),
                 Position = UDim2.new(0, 4, 0.5, 0),
@@ -337,4 +336,4 @@ function Library:Notify(...)
     return Data
 end
 
-_G.NotificationLibrary = Library
+return Library
