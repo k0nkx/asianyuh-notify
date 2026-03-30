@@ -1,0 +1,296 @@
+--[[
+    Simple Notification Library
+    GitHub: https://github.com/yourusername/notification-library
+    Usage: loadstring(game:HttpGet("https://raw.githubusercontent.com/yourusername/notification-library/main/init.lua"))()
+]]
+
+local NotificationLibrary = {}
+NotificationLibrary.__index = NotificationLibrary
+
+-- Configuration
+local DEFAULT_CONFIG = {
+    Position = "bottom", -- Only bottom is supported
+    Duration = 5,
+    Font = Enum.Font.GothamMedium,
+    FontSize = 14,
+    Padding = 4,
+    BottomOffset = 40,
+    Width = 300,
+    AnimationTime = 0.4,
+    MainColor = Color3.fromRGB(30, 30, 30),
+    OutlineColor = Color3.fromRGB(20, 20, 20),
+    AccentColor = Color3.fromRGB(0, 120, 255),
+    TextColor = Color3.fromRGB(255, 255, 255),
+    DarkerColor = Color3.fromRGB(25, 25, 25)
+}
+
+-- Create a new notification instance
+function NotificationLibrary.new(screenGui, config)
+    local self = setmetatable({}, NotificationLibrary)
+    
+    self.Config = {}
+    for k, v in pairs(DEFAULT_CONFIG) do
+        self.Config[k] = config and config[k] or v
+    end
+    
+    self.ScreenGui = screenGui or script.Parent
+    self.Notifications = {}
+    self.TweenService = game:GetService("TweenService")
+    
+    -- Create notification container
+    self.Container = Instance.new("Frame")
+    self.Container.Name = "NotificationContainer"
+    self.Container.AnchorPoint = Vector2.new(0.5, 1)
+    self.Container.BackgroundTransparency = 1
+    self.Container.Position = UDim2.new(0.5, 0, 1, -self.Config.BottomOffset)
+    self.Container.Size = UDim2.new(0, self.Config.Width, 0, 200)
+    self.Container.ZIndex = 11000
+    self.Container.Parent = self.ScreenGui
+    
+    -- Create UIListLayout for notifications
+    self.Layout = Instance.new("UIListLayout")
+    self.Layout.Padding = UDim.new(0, self.Config.Padding)
+    self.Layout.FillDirection = Enum.FillDirection.Vertical
+    self.Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    self.Layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+    self.Layout.SortOrder = Enum.SortOrder.LayoutOrder
+    self.Layout.Parent = self.Container
+    
+    return self
+end
+
+-- Helper function to get text bounds
+function NotificationLibrary:GetTextBounds(text, font, size)
+    local textBounds = Instance.new("TextLabel")
+    textBounds.Font = font
+    textBounds.TextSize = size
+    textBounds.Text = text
+    textBounds.TextWrapped = true
+    textBounds.Size = UDim2.new(0, self.Config.Width - 12, 0, 0)
+    textBounds.Parent = self.ScreenGui
+    
+    local size = textBounds.TextBounds
+    textBounds:Destroy()
+    
+    return size.X, size.Y
+end
+
+-- Helper function to get darker color
+function NotificationLibrary:GetDarkerColor(color)
+    return Color3.new(color.R * 0.8, color.G * 0.8, color.B * 0.8)
+end
+
+-- Create a new notification
+function NotificationLibrary:Notify(data)
+    local notification = {}
+    
+    -- Parse input
+    if type(data) == "string" then
+        notification.Title = ""
+        notification.Description = data
+        notification.Duration = self.Config.Duration
+    elseif type(data) == "table" then
+        notification.Title = data.Title and tostring(data.Title) or ""
+        notification.Description = tostring(data.Description)
+        notification.Duration = data.Duration or self.Config.Duration
+        notification.Persist = data.Persist or false
+    end
+    
+    notification.Destroyed = false
+    
+    -- Handle instance-based duration
+    local deletedInstance = false
+    local deleteConnection = nil
+    if typeof(notification.Duration) == "Instance" then
+        deleteConnection = notification.Duration.Destroying:Connect(function()
+            deletedInstance = true
+            deleteConnection:Disconnect()
+            deleteConnection = nil
+        end)
+    end
+    
+    -- Calculate size
+    local textX, textY = self:GetTextBounds(notification.Description, self.Config.Font, self.Config.FontSize)
+    textY = textY + 7
+    
+    -- Create notification frame
+    local outerFrame = Instance.new("Frame")
+    outerFrame.Name = "Notification"
+    outerFrame.BorderColor3 = Color3.new(0, 0, 0)
+    outerFrame.Size = UDim2.new(0, 0, 0, textY)
+    outerFrame.ClipsDescendants = true
+    outerFrame.ZIndex = 11000
+    outerFrame.Visible = false
+    outerFrame.Parent = self.Container
+    
+    -- Inner frame with border
+    local innerFrame = Instance.new("Frame")
+    innerFrame.BackgroundColor3 = self.Config.MainColor
+    innerFrame.BorderColor3 = self.Config.OutlineColor
+    innerFrame.BorderMode = Enum.BorderMode.Inset
+    innerFrame.Size = UDim2.new(1, 0, 1, 0)
+    innerFrame.ZIndex = 11001
+    innerFrame.Parent = outerFrame
+    
+    -- Content frame
+    local contentFrame = Instance.new("Frame")
+    contentFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+    contentFrame.BorderSizePixel = 0
+    contentFrame.Position = UDim2.new(0, 1, 0, 1)
+    contentFrame.Size = UDim2.new(1, -2, 1, -2)
+    contentFrame.ZIndex = 11002
+    contentFrame.Parent = innerFrame
+    
+    -- Gradient
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, self:GetDarkerColor(self.Config.MainColor)),
+        ColorSequenceKeypoint.new(1, self.Config.MainColor),
+    })
+    gradient.Rotation = -90
+    gradient.Parent = contentFrame
+    
+    -- Text label
+    local textLabel = Instance.new("TextLabel")
+    textLabel.AnchorPoint = Vector2.new(0.5, 0)
+    textLabel.Position = UDim2.new(0.5, 0, 0, 0)
+    textLabel.Size = UDim2.new(1, -8, 1, -2)
+    
+    if notification.Title == "" then
+        textLabel.Text = notification.Description
+    else
+        textLabel.Text = "[" .. notification.Title .. "] " .. notification.Description
+    end
+    
+    textLabel.TextColor3 = self.Config.TextColor
+    textLabel.TextXAlignment = Enum.TextXAlignment.Center
+    textLabel.TextSize = self.Config.FontSize
+    textLabel.Font = self.Config.Font
+    textLabel.RichText = true
+    textLabel.ZIndex = 11003
+    textLabel.Parent = contentFrame
+    
+    -- Accent bar
+    local accentBar = Instance.new("Frame")
+    accentBar.AnchorPoint = Vector2.new(0, 1)
+    accentBar.Position = UDim2.new(0, -1, 1, 1)
+    accentBar.BackgroundColor3 = self.Config.AccentColor
+    accentBar.BorderSizePixel = 0
+    accentBar.Size = UDim2.new(1, 2, 0, 2)
+    accentBar.ZIndex = 11004
+    accentBar.Parent = outerFrame
+    
+    -- Resize function
+    function notification:Resize()
+        local newX, newY = self:GetTextBounds(textLabel.Text, self.Config.Font, self.Config.FontSize)
+        newY = newY + 7
+        
+        pcall(outerFrame.TweenSize, outerFrame, UDim2.new(0, newX + 12, 0, newY), "Out", "Quad", self.Config.AnimationTime, true)
+    end
+    
+    -- Change title
+    function notification:ChangeTitle(newTitle)
+        newTitle = newTitle == nil and "" or tostring(newTitle)
+        notification.Title = newTitle
+        
+        if notification.Title == "" then
+            textLabel.Text = notification.Description
+        else
+            textLabel.Text = "[" .. notification.Title .. "] " .. notification.Description
+        end
+        
+        notification:Resize()
+    end
+    
+    -- Change description
+    function notification:ChangeDescription(newDescription)
+        if newDescription == nil then return end
+        notification.Description = tostring(newDescription)
+        
+        if notification.Title == "" then
+            textLabel.Text = notification.Description
+        else
+            textLabel.Text = "[" .. notification.Title .. "] " .. notification.Description
+        end
+        
+        notification:Resize()
+    end
+    
+    -- Destroy notification
+    function notification:Destroy()
+        if notification.Destroyed then return end
+        notification.Destroyed = true
+        
+        if typeof(notification.Duration) == "Instance" then
+            pcall(notification.Duration.Destroy, notification.Duration)
+        end
+        
+        if deleteConnection then
+            deleteConnection:Disconnect()
+        end
+        
+        pcall(outerFrame.TweenSize, outerFrame, UDim2.new(0, 0, 0, textY), "Out", "Quad", self.Config.AnimationTime, true)
+        task.wait(self.Config.AnimationTime)
+        outerFrame:Destroy()
+    end
+    
+    -- Show notification
+    notification:Resize()
+    outerFrame.Visible = true
+    outerFrame.Size = UDim2.new(0, 0, 0, textY)
+    
+    local targetX = textX + 12
+    local tween = self.TweenService:Create(outerFrame, TweenInfo.new(self.Config.AnimationTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, targetX, 0, textY)
+    })
+    tween:Play()
+    
+    -- Auto-destroy timer
+    if not notification.Persist then
+        task.delay(self.Config.AnimationTime, function()
+            if notification.Destroyed then return end
+            
+            if typeof(notification.Duration) == "Instance" then
+                repeat
+                    task.wait()
+                until deletedInstance or notification.Destroyed
+            else
+                task.wait(notification.Duration)
+            end
+            
+            if not notification.Destroyed then
+                notification:Destroy()
+            end
+        end)
+    end
+    
+    return notification
+end
+
+-- Clear all notifications
+function NotificationLibrary:Clear()
+    for _, notification in pairs(self.Container:GetChildren()) do
+        if notification:IsA("Frame") and notification.Name == "Notification" then
+            notification:Destroy()
+        end
+    end
+end
+
+-- Update configuration
+function NotificationLibrary:UpdateConfig(newConfig)
+    for k, v in pairs(newConfig) do
+        if self.Config[k] ~= nil then
+            self.Config[k] = v
+        end
+    end
+    
+    -- Update container position if bottom offset changed
+    if newConfig.BottomOffset then
+        self.Container.Position = UDim2.new(0.5, 0, 1, -self.Config.BottomOffset)
+    end
+end
+
+-- Create and return the library
+return function(screenGui, config)
+    return NotificationLibrary.new(screenGui or script.Parent, config)
+end
