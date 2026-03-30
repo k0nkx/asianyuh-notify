@@ -1,3 +1,7 @@
+if _G.NotificationLibrary then
+    _G.NotificationLibrary.Cleanup()
+end
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "NotificationGui"
 ScreenGui.Parent = game:GetService("CoreGui")
@@ -11,7 +15,9 @@ local Library = {
     FontColor = Color3.fromRGB(255, 255, 255),
     Font = Enum.Font.Gotham,
     DPIScale = 1,
-    Registry = {}
+    Registry = {},
+    ActiveNotifications = {},
+    ScreenGui = ScreenGui
 }
 
 function Library:GetDarkerColor(color)
@@ -109,6 +115,34 @@ Library:Create("UIListLayout", {
     SortOrder = Enum.SortOrder.LayoutOrder,
     Parent = BottomArea,
 })
+
+function Library:Cleanup()
+    for _, notification in ipairs(self.ActiveNotifications) do
+        pcall(function()
+            if notification and notification.Destroy then
+                notification:Destroy()
+            end
+        end)
+    end
+    self.ActiveNotifications = {}
+    
+    if self.ScreenGui then
+        pcall(function()
+            self.ScreenGui:Destroy()
+        end)
+    end
+    
+    if self.Registry then
+        for _, item in ipairs(self.Registry) do
+            pcall(function()
+                if item.Instance and item.Instance.Parent then
+                    item.Instance:Destroy()
+                end
+            end)
+        end
+        self.Registry = {}
+    end
+end
 
 function Library:Notify(...)
     local Data = {}
@@ -270,6 +304,13 @@ function Library:Notify(...)
     function Data:Destroy()
         if Data.Destroyed then return end
         Data.Destroyed = true
+        
+        for i, notif in ipairs(Library.ActiveNotifications) do
+            if notif == Data then
+                table.remove(Library.ActiveNotifications, i)
+                break
+            end
+        end
 
         if typeof(Data.Time) == "Instance" then
             pcall(Data.Time.Destroy, Data.Time)
@@ -307,6 +348,8 @@ function Library:Notify(...)
     })
     
     ExpandTween:Play()
+    
+    table.insert(Library.ActiveNotifications, Data)
 
     task.delay(0.4, function()
         if Data.Persist then
@@ -326,5 +369,7 @@ function Library:Notify(...)
 
     return Data
 end
+
+_G.NotificationLibrary = Library
 
 return Library
