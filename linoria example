@@ -1,0 +1,30 @@
+-- Load the library from your GitHub
+local NotifyLib = loadstring(game:HttpGet("https://github.com/k0nkx/asianyuh-notify/raw/refs/heads/main/ignore/f1"))()
+
+-- 1. Simple text notification
+NotifyLib:Notify("Simple notification", 3)
+
+NotifyLib:Notify("uh 2nd one", 3, Color3.fromRGB(187, 141, 247))
+
+-- 2. Notification with a Title and the default line color
+NotifyLib:Notify({
+    Title = "Warning",
+    Description = "Player joined the game.",
+    Time = 5
+})
+
+-- 3. Notification with a custom Line Color (Red in this case)
+NotifyLib:Notify({
+    Title = "Error",
+    Description = "Failed to load script!",
+    Time = 5,
+    LineColor = Color3.fromRGB(255, 50, 50) -- This changes the bottom line's color!
+})
+
+-- 4. Notification that persists until you close it entirely (or clear the UI)
+NotifyLib:Notify({
+    Title = "Status update",
+    Description = "Aimbot is currently toggled ON",
+    Persist = true,
+    LineColor = Color3.fromRGB(50, 255, 50)
+})
