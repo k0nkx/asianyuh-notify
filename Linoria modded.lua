@@ -142,10 +142,10 @@ function NotificationLibrary:Notify(Info, ...)
 
     local SideColor = Instance.new("Frame")
     SideColor.AnchorPoint = Vector2.new(0, 1)
-    SideColor.Position = UDim2.new(0, -1, 1, -1)
+    SideColor.Position = UDim2.new(0, 2, 1, -1)
     SideColor.BackgroundColor3 = Data.LineColor or self.AccentColor
     SideColor.BorderSizePixel = 0
-    SideColor.Size = UDim2.new(1, -1, 0, 1)
+    SideColor.Size = UDim2.new(1, -4, 0, 1)
     SideColor.ZIndex = 11004
     SideColor.Parent = NotifyOuter
 
