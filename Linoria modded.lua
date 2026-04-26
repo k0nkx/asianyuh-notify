@@ -45,6 +45,8 @@ NotificationLibrary.Font = Enum.Font.Code
 NotificationLibrary.FontSize = 14
 NotificationLibrary.DPIScale = 1
 
+local notifOrder = 0
+
 local function GetDarkerColor(col)
     local h, s, v = Color3.toHSV(col)
     return Color3.fromHSV(h, s, math.max(v - 0.1, 0))
@@ -67,6 +69,7 @@ function NotificationLibrary:Notify(Info, ...)
         Data.Title = ""
         Data.Description = tostring(Info)
         Data.Time = select(1, ...) or 5
+        Data.LineColor = select(2, ...)
     end
     Data.Destroyed = false
 
@@ -86,13 +89,17 @@ function NotificationLibrary:Notify(Info, ...)
     local XSize, YSize = GetTextBounds(LabelText, self.Font, self.FontSize)
     YSize = YSize + 7
 
+    notifOrder = notifOrder + 1
+
     local NotifyOuter = Instance.new("Frame")
     NotifyOuter.BorderColor3 = Color3.new(0, 0, 0)
+    NotifyOuter.BackgroundTransparency = 1
     NotifyOuter.Size = UDim2.new(0, 0, 0, YSize)
     NotifyOuter.ClipsDescendants = true
     NotifyOuter.ZIndex = 11000
     NotifyOuter.Visible = false
     NotifyOuter.Name = "Notif"
+    NotifyOuter.LayoutOrder = notifOrder
     NotifyOuter.Parent = BottomNotificationArea
 
     local NotifyInner = Instance.new("Frame")
@@ -135,7 +142,7 @@ function NotificationLibrary:Notify(Info, ...)
 
     local SideColor = Instance.new("Frame")
     SideColor.AnchorPoint = Vector2.new(0, 1)
-    SideColor.Position = UDim2.new(0, -1, 1, 1)
+    SideColor.Position = UDim2.new(0, -1, 1, -1)
     SideColor.BackgroundColor3 = Data.LineColor or self.AccentColor
     SideColor.BorderSizePixel = 0
     SideColor.Size = UDim2.new(1, 2, 0, 2)
@@ -147,9 +154,9 @@ function NotificationLibrary:Notify(Info, ...)
         XSize, YSize = GetTextBounds(LabelText, NotificationLibrary.Font, NotificationLibrary.FontSize)
         YSize = YSize + 7
         local targetX = XSize * NotificationLibrary.DPIScale + 12
-        pcall(function()
-            NotifyOuter:TweenSize(UDim2.new(0, targetX, 0, YSize), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.4, true)
-        end)
+        TweenService:Create(NotifyOuter, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, targetX, 0, YSize)
+        }):Play()
     end
 
     function Data:ChangeTitle(NewText)
@@ -174,22 +181,20 @@ function NotificationLibrary:Notify(Info, ...)
             DeleteConnection:Disconnect()
             DeleteConnection = nil
         end
-        pcall(function()
-            NotifyOuter:TweenSize(UDim2.new(0, 0, 0, YSize), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.4, true)
-        end)
+        TweenService:Create(NotifyOuter, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 0, 0, YSize)
+        }):Play()
         task.wait(0.4)
         NotifyOuter:Destroy()
     end
 
-    Data:Resize()
     NotifyOuter.Visible = true
     NotifyOuter.Size = UDim2.new(0, 0, 0, YSize)
-    
+
     local TargetX = XSize * self.DPIScale + 12
-    local LineTween = TweenService:Create(NotifyOuter, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(NotifyOuter, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Size = UDim2.new(0, TargetX, 0, YSize)
-    })
-    LineTween:Play()
+    }):Play()
 
     task.delay(0.4, function()
         if Data.Persist then
